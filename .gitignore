@@ -1,2 +1,27 @@
-*.class
-*.log
+#SBT
+target
+project/target
+
+#Metals + Bloop build server
+.metals
+.bloop
+project/metals.sbt
+.vscode/
+.bloop/
+project/.bloop/
+.metals/
+.ammonite/
+metals.sbt
+
+
+# IntelliJ
+.idea
+.idea_modules
+*.iml
+*.ipr
+*.iws
+.history
+
+# Mac
+.DS_Store
+
