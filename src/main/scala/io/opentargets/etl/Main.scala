@@ -17,6 +17,9 @@ object ETL extends LazyLogging {
       case "grounding" =>
         logger.info("run step Entity Grounding EPMC")
         Grounding()
+      case "analysis" =>
+        logger.info("run step Analysis")
+        Analysis()
       case _ => logger.warn(s"step $step is unknown so nothing to execute")
     }
     logger.info(s"finished to run step ($step)")

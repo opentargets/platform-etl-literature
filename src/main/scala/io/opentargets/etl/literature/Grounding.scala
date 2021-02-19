@@ -153,9 +153,9 @@ object Grounding extends Serializable with LazyLogging {
     val resolvedEntities = resolveEntities(entities, luts)
 
     val outputs = context.configuration.grounding.outputs
-    logger.info(s"write to ${context.configuration.common.output}/disease")
+    logger.info(s"write to ${context.configuration.common.output}/grounding")
     val dataframesToSave = Map(
-      "disease" -> IOResource(resolvedEntities, outputs.grounding)
+      "grounding" -> IOResource(resolvedEntities, outputs.grounding)
     )
 
     Helpers.writeTo(dataframesToSave)

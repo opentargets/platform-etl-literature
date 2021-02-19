@@ -35,6 +35,7 @@ object Helpers extends LazyLogging {
       .setAppName(appName)
       .set("spark.driver.maxResultSize", "0")
       .set("spark.debug.maxToStringFields", "2000")
+      .set("spark.sql.mapKeyDedupPolicy", "LAST_WIN")
 
     // if some uri then setmaster must be set otherwise
     // it tries to get from env if any yarn running
@@ -55,6 +56,17 @@ object Helpers extends LazyLogging {
       "αβγδεζηικλμνξπτυω",
       "abgdezhiklmnxptuo")
   }
+
+  def harmonicFn(c: Column): Column =
+    aggregate(
+      zip_with(
+        sort_array(c, asc = false),
+        sequence(lit(1), size(c)),
+        (e1, e2)  => e1 / pow(e2, 2D)),
+      lit(0D),
+      (c1, c2) => c1 + c2
+    )
+
   /** It creates an hashmap of dataframes.
    *   Es. inputsDataFrame {"disease", Dataframe} , {"target", Dataframe}
    *   Reading is the first step in the pipeline
