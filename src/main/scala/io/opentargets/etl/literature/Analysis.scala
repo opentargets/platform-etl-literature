@@ -37,7 +37,7 @@ object Analysis extends Serializable with LazyLogging {
     val empcConfiguration = context.configuration.analysis
 
     val mappedInputs = Map(
-      // search output of ETL. (disease,drug,target)
+      // grounding is the output of Grounding step.
       "grounding" -> empcConfiguration.grounding
     )
 

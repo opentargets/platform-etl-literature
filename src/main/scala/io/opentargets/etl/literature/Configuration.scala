@@ -27,11 +27,19 @@ object Configuration extends LazyLogging {
                                outputs: AnalysisOutput
                              )
 
+  case class EmbeddingOutput( word: IOResourceConfig )
+
+  case class EmbeddingSection(
+                              matches : IOResourceConfig,
+                              outputs: EmbeddingOutput
+                            )
+
   case class OTConfig(
                        sparkUri: Option[String],
                        common: Common,
                        grounding: GroundingSection,
-                       analysis: AnalysisSection
+                       analysis: AnalysisSection,
+                       embedding: EmbeddingSection
                      )
 
   def load: ConfigReader.Result[OTConfig] = {

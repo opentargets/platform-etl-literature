@@ -20,6 +20,9 @@ object ETL extends LazyLogging {
       case "analysis" =>
         logger.info("run step Analysis")
         Analysis()
+      case "embedding" =>
+        logger.info("run step Embedding")
+        Embedding()
       case _ => logger.warn(s"step $step is unknown so nothing to execute")
     }
     logger.info(s"finished to run step ($step)")
