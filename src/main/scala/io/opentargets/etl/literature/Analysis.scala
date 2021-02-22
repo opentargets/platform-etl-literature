@@ -29,6 +29,8 @@ object Analysis extends Serializable with LazyLogging {
       .selectExpr("*", "match.*").drop("match", "matches")
 
   }
+
+
   def apply()(implicit context: ETLSessionContext): Unit = {
     implicit val ss: SparkSession = context.sparkSession
 

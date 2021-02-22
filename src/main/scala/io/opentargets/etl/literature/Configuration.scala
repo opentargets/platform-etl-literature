@@ -27,7 +27,7 @@ object Configuration extends LazyLogging {
                                outputs: AnalysisOutput
                              )
 
-  case class EmbeddingOutput( word: IOResourceConfig )
+  case class EmbeddingOutput( wordvec: IOResourceConfig, wordvecsyn: IOResourceConfig )
 
   case class EmbeddingSection(
                               matches : IOResourceConfig,
