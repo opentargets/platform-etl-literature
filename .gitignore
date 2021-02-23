@@ -12,6 +12,16 @@ project/.bloop/
 .metals/
 .ammonite/
 metals.sbt
+/deprecated/resources/amm.application.conf
+project/metals.sbt
+
+# Other
+tmp/.sbtopts
+.jvmopts
+*.out
+*.log
+application.conf
+application.xml
 
 
 # IntelliJ

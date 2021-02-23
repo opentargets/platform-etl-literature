@@ -16,10 +16,14 @@ lazy val root = (project in file("."))
     name := "io-opentargets-etl-literature",
     version := "0.1",
     resolvers ++= buildResolvers,
+    libraryDependencies ++= aoyi,
+    libraryDependencies += betterFiles,
     libraryDependencies ++= configDeps,
     libraryDependencies ++= loggingDeps,
-    libraryDependencies += typeSafeConfig,
+    libraryDependencies += scalaCheck,
     libraryDependencies ++= sparkDeps,
+    libraryDependencies ++= testingDeps,
+    libraryDependencies += typeSafeConfig,
     assemblyMergeStrategy in assembly := {
       case PathList("META-INF", "services", "org.apache.hadoop.fs.FileSystem") =>
         MergeStrategy.filterDistinctLines

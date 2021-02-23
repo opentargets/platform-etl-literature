@@ -67,6 +67,7 @@ object Helpers extends LazyLogging {
       (c1, c2) => c1 + c2
     )
 
+
   /** It creates an hashmap of dataframes.
    *   Es. inputsDataFrame {"disease", Dataframe} , {"target", Dataframe}
    *   Reading is the first step in the pipeline

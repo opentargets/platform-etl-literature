@@ -2,6 +2,12 @@ import sbt._
 
 object Dependencies {
 
+  lazy val aoyi = Seq(
+    "com.lihaoyi" %% "pprint" % "0.6.0"
+  )
+
+  lazy val betterFiles = "com.github.pathikrit" %% "better-files-akka" % "3.9.1"
+
   lazy val configDeps = Seq(
     "org.yaml" % "snakeyaml" % "1.21",
     "com.github.pureconfig" %% "pureconfig" % "0.12.3"
@@ -22,5 +28,14 @@ object Dependencies {
     "org.apache.spark" %% "spark-mllib" % sparkVersion
   )
 
+  lazy val scalaCheck = "org.scalacheck" %% "scalacheck" % "1.14.3"
+
+  lazy val testVersion = "3.2.0"
+  lazy val testingDeps = Seq(
+    "org.scalactic" %% "scalactic" % testVersion,
+    "org.scalatest" %% "scalatest" % testVersion % "test"
+  )
+
   lazy val typeSafeConfig = "com.typesafe" % "config" % "1.4.0"
+
 }
