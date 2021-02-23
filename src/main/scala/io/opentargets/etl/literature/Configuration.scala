@@ -10,37 +10,37 @@ import pureconfig.generic.auto._
 object Configuration extends LazyLogging {
   lazy val config: Result[OTConfig] = load
 
-  case class Common(defaultSteps: Seq[String],output: String, outputFormat: String)
+  case class Common(defaultSteps: Seq[String], output: String, outputFormat: String)
 
-  case class GroundingOutput( grounding: IOResourceConfig )
+  case class GroundingOutput(grounding: IOResourceConfig)
 
   case class GroundingSection(
-                         otLuts: IOResourceConfig,
-                         epmc: IOResourceConfig,
-                         outputs: GroundingOutput
-                        )
+      otLuts: IOResourceConfig,
+      epmc: IOResourceConfig,
+      outputs: GroundingOutput
+  )
 
-  case class AnalysisOutput( cooccurrences: IOResourceConfig, matches: IOResourceConfig )
+  case class AnalysisOutput(cooccurrences: IOResourceConfig, matches: IOResourceConfig)
 
   case class AnalysisSection(
-                               grounding : IOResourceConfig,
-                               outputs: AnalysisOutput
-                             )
+      grounding: IOResourceConfig,
+      outputs: AnalysisOutput
+  )
 
-  case class EmbeddingOutput( wordvec: IOResourceConfig, wordvecsyn: IOResourceConfig )
+  case class EmbeddingOutput(wordvec: IOResourceConfig, wordvecsyn: IOResourceConfig)
 
   case class EmbeddingSection(
-                              matches : IOResourceConfig,
-                              outputs: EmbeddingOutput
-                            )
+      matches: IOResourceConfig,
+      outputs: EmbeddingOutput
+  )
 
   case class OTConfig(
-                       sparkUri: Option[String],
-                       common: Common,
-                       grounding: GroundingSection,
-                       analysis: AnalysisSection,
-                       embedding: EmbeddingSection
-                     )
+      sparkUri: Option[String],
+      common: Common,
+      grounding: GroundingSection,
+      analysis: AnalysisSection,
+      embedding: EmbeddingSection
+  )
 
   def load: ConfigReader.Result[OTConfig] = {
     logger.info("load configuration from file")

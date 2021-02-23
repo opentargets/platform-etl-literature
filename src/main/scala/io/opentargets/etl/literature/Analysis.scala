@@ -14,22 +14,26 @@ object Analysis extends Serializable with LazyLogging {
     import sparkSession.implicits._
 
     df.withColumn("sentence", explode($"sentences"))
-      .selectExpr("*", "sentence.*").drop("sentence", "sentences", "matches")
+      .selectExpr("*", "sentence.*")
+      .drop("sentence", "sentences", "matches")
       .filter($"co-occurrence".isNotNull)
       .withColumn("cooc", explode($"co-occurrence"))
-      .selectExpr("*", "cooc.*").drop("cooc", "co-occurrence")
+      .selectExpr("*", "cooc.*")
+      .drop("cooc", "co-occurrence")
 
   }
 
   private def matches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
     df.withColumn("sentence", explode($"sentences"))
-      .selectExpr("*", "sentence.*").drop("sentence", "sentences", "co-occurrence")
-      .filter($"matches".isNotNull).withColumn("match", explode($"matches"))
-      .selectExpr("*", "match.*").drop("match", "matches")
+      .selectExpr("*", "sentence.*")
+      .drop("sentence", "sentences", "co-occurrence")
+      .filter($"matches".isNotNull)
+      .withColumn("match", explode($"matches"))
+      .selectExpr("*", "match.*")
+      .drop("match", "matches")
 
   }
-
 
   def apply()(implicit context: ETLSessionContext): Unit = {
     implicit val ss: SparkSession = context.sparkSession

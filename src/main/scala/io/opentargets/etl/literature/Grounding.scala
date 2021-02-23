@@ -9,8 +9,9 @@ import org.apache.spark.sql._
 
 object Grounding extends Serializable with LazyLogging {
 
-  def resolveEntities(entities: DataFrame, luts: DataFrame)(
-    implicit sparkSession: SparkSession): DataFrame = {
+  def resolveEntities(entities: DataFrame, luts: DataFrame)(implicit
+      sparkSession: SparkSession
+  ): DataFrame = {
     import sparkSession.implicits._
 
     val mergedMatches = entities
@@ -27,7 +28,8 @@ object Grounding extends Serializable with LazyLogging {
         first($"pubDate").as("pubDate"),
         first($"section").as("section"),
         collect_list(
-          struct($"endInSentence",
+          struct(
+            $"endInSentence",
             $"label",
             $"sectionEnd",
             $"sectionStart",
@@ -35,7 +37,8 @@ object Grounding extends Serializable with LazyLogging {
             $"type",
             $"labelN",
             $"keywordId",
-            $"isMapped")
+            $"isMapped"
+          )
         ).as("matches")
       )
 
@@ -80,7 +83,8 @@ object Grounding extends Serializable with LazyLogging {
       )
 
     val merged =
-      mergedMatches.join(mergedCooc, Seq("pmid", "text"), "left_outer")
+      mergedMatches
+        .join(mergedCooc, Seq("pmid", "text"), "left_outer")
         .groupBy($"pmid")
         .agg(
           first($"organisms").as("organisms"),
@@ -131,7 +135,6 @@ object Grounding extends Serializable with LazyLogging {
       .drop("sentence")
 
   }
-
 
   def apply()(implicit context: ETLSessionContext): Unit = {
     implicit val ss: SparkSession = context.sparkSession
