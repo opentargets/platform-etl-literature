@@ -98,7 +98,7 @@ Simply run the following command:
 ```bash
 sbt assembly
 ```
-The jar will be generated under _target/scala-2.12.10/_
+The jar will be generated under _target/scala-2.12.12/_
 
 ### Configuration
 
