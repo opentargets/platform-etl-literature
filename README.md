@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/opentargets/platform-etl-literature.svg?branch=master)](https://travis-ci.com/opentargets/platform-etl-liturature)
+[![Build Status](https://travis-ci.com/opentargets/platform-etl-literature.svg?branch=main)](https://travis-ci.com/opentargets/platform-etl-liturature)
 # Open Targets ETL Literature
 
 The aim of this application is to replace and to enhance the LINK project. 
@@ -106,7 +106,9 @@ The base configuration is found under `src/main/resources/reference.conf`. If yo
 for a Spark job see [below](#load-with-custom-configuration). 
 
 #### Inputs
-The inputs information are described inside the single step (Grounding, Processing and Embedding)
+The inputs information are described under 
+* Obtain Opentarget entities
+* Obtain EPMC entities
 
 #### Outputs
 
@@ -114,7 +116,9 @@ The inputs information are described inside the single step (Grounding, Processi
 output dir:
     grounding
     matches
-    co-occurance
+    cooccurrences
+    word2vec
+    word2vecSynonym
     xxyy
 ```
 
@@ -205,7 +209,7 @@ where `application.conf` is a subset of `reference.conf`
 
 ```hocon
 common {
-  output = "gs://ot-snapshots/etl/prod-latest"
+  output = "gs://ot-snapshots/etl-literature/prod-latest"
 }
 ```
 
@@ -233,15 +237,14 @@ Where release is something like 20.11.0 (year, month, iteration). Hopefully we d
 ```
 sbt assembly
 
-gsutil cp target/scala-2.12/<jar> gs://open-targets-data-releases/<release>/openfda-faers/<jar>
+gsutil cp target/scala-2.12/<jar> gs://open-targets-data-releases/<release>/platform-etl-literature/<jar>
 ```
 3. Generate input files and push to cloud
 4. Create updated configuration file and push to cloud
   - Save file in same place as jar so it can be re-run if necessary.
-5. Run ETL step
-  - Update `run-openfda-dataproc.sh` with necessary variables (location of jar, config, etc)
+5. Run the steps
 6. Create Elasticseach index (script in `platform-backend-etl` repository)
-  - The relevant output file is `agg_critval_drug`
+  - The relevant output file is `xxyy`
 
 # Versioning
 
