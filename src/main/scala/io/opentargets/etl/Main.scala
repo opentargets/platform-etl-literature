@@ -17,9 +17,9 @@ object ETL extends LazyLogging {
       case "grounding" =>
         logger.info("run step Entity Grounding EPMC")
         Grounding()
-      case "analysis" =>
+      case "processing" =>
         logger.info("run step Analysis")
-        Analysis()
+        Processing()
       case "embedding" =>
         logger.info("run step Embedding")
         Embedding()
@@ -50,7 +50,6 @@ object ETL extends LazyLogging {
           logger.debug(s"step to run: '$step'")
           ETL.applySingleStep(step)
         }
-
 
       case Left(ex) => logger.error(ex.prettyPrint())
     }

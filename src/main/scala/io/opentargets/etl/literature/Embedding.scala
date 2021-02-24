@@ -26,14 +26,14 @@ object Embedding extends Serializable with LazyLogging {
     val model = w2vModel.fit(df)
 
     // Display frequent itemsets.
-    model.getVectors.show(25, false)
+    //model.getVectors.show(25, false)
 
     model
   }
 
-  private def generateSynonyms(df: DataFrame, matchesModel: Word2VecModel)(implicit
-      sparkSession: SparkSession
-  ) = {
+  private def generateSynonyms(df: DataFrame, matchesModel: Word2VecModel)(
+      implicit
+      sparkSession: SparkSession) = {
     import sparkSession.implicits._
 
     logger.info("produce the list of unique terms (GP, DS, CD)")

@@ -20,11 +20,11 @@ object Configuration extends LazyLogging {
       outputs: GroundingOutput
   )
 
-  case class AnalysisOutput(cooccurrences: IOResourceConfig, matches: IOResourceConfig)
+  case class ProcessingOutput(cooccurrences: IOResourceConfig, matches: IOResourceConfig)
 
-  case class AnalysisSection(
+  case class ProcessingSection(
       grounding: IOResourceConfig,
-      outputs: AnalysisOutput
+      outputs: ProcessingOutput
   )
 
   case class EmbeddingOutput(wordvec: IOResourceConfig, wordvecsyn: IOResourceConfig)
@@ -38,7 +38,7 @@ object Configuration extends LazyLogging {
       sparkUri: Option[String],
       common: Common,
       grounding: GroundingSection,
-      analysis: AnalysisSection,
+      processing: ProcessingSection,
       embedding: EmbeddingSection
   )
 

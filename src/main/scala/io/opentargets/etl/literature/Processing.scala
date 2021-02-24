@@ -8,7 +8,7 @@ import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.IOResource
 import org.apache.spark.sql._
 
-object Analysis extends Serializable with LazyLogging {
+object Processing extends Serializable with LazyLogging {
 
   private def coOccurrences(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
@@ -38,9 +38,9 @@ object Analysis extends Serializable with LazyLogging {
   def apply()(implicit context: ETLSessionContext): Unit = {
     implicit val ss: SparkSession = context.sparkSession
 
-    logger.info("Analysis step")
+    logger.info("Processing step")
 
-    val empcConfiguration = context.configuration.analysis
+    val empcConfiguration = context.configuration.processing
 
     val mappedInputs = Map(
       // grounding is the output of Grounding step.
@@ -51,8 +51,8 @@ object Analysis extends Serializable with LazyLogging {
     val epmcCoOccurrencesDf = coOccurrences(inputDataFrames("grounding").data)
     val matchesDf = matches(inputDataFrames("grounding").data)
 
-    val outputs = context.configuration.analysis.outputs
-    logger.info(s"write to ${context.configuration.common.output}/analysis")
+    val outputs = context.configuration.processing.outputs
+    logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
       "cooccurrences" -> IOResource(epmcCoOccurrencesDf, outputs.cooccurrences),
       "matches" -> IOResource(matchesDf, outputs.matches)
