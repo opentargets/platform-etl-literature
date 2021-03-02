@@ -67,7 +67,7 @@ object Processing extends Serializable with LazyLogging {
 
     val empcConfiguration = context.configuration.processing
 
-    val grounding = Grounding.compute()
+    val grounding = Grounding.compute(empcConfiguration)
 
     val epmcCoOccurrencesDf = coOccurrences(grounding)
     val matchesDf = matches(grounding)

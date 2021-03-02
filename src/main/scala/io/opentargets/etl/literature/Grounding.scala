@@ -1,6 +1,7 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
+import io.opentargets.etl.literature.Configuration.ProcessingSection
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.functions.col
 import io.opentargets.etl.literature.spark.Helpers
@@ -136,10 +137,11 @@ object Grounding extends Serializable with LazyLogging {
 
   }
 
-  def compute()(implicit context: ETLSessionContext): DataFrame = {
+  def compute(empcConfiguration: ProcessingSection)(
+      implicit context: ETLSessionContext): DataFrame = {
     implicit val ss: SparkSession = context.sparkSession
     logger.info("Grounding step")
-    val empcConfiguration = context.configuration.grounding
+
     val mappedInputs = Map(
       // search output of ETL. (disease,drug,target)
       "luts" -> empcConfiguration.otLuts,
@@ -153,20 +155,4 @@ object Grounding extends Serializable with LazyLogging {
     resolveEntities(entities, luts)
   }
 
-  def save()(df: DataFrame)(implicit context: ETLSessionContext): Unit = {
-    implicit val ss: SparkSession = context.sparkSession
-    val outputs = context.configuration.grounding.outputs
-    logger.info(s"write to ${context.configuration.common.output}/grounding")
-    val dataframesToSave = Map(
-      "grounding" -> IOResource(df, outputs.grounding)
-    )
-
-    Helpers.writeTo(dataframesToSave)
-  }
-
-  //def apply()(implicit context: ETLSessionContext): Unit = {
-  //  implicit val ss: SparkSession = context.sparkSession
-  //  val resolvedEntities = compute()
-  //  save(resolvedEntities)
-  //}
 }
