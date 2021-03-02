@@ -23,6 +23,31 @@ object Processing extends Serializable with LazyLogging {
 
   }
 
+  private def createIndexForETL(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
+    import sparkSession.implicits._
+
+    df.filter($"isMapped" === true)
+      .groupBy($"pmid", $"type")
+      .agg(
+        first($"organisms").as("organisms"),
+        first($"pubDate").as("pubDate"),
+        first($"section").as("section"),
+        first($"text").as("text"),
+        collect_list(
+          struct(
+            $"endInSentence",
+            $"label",
+            $"sectionEnd",
+            $"sectionStart",
+            $"startInSentence",
+            $"labelN",
+            $"keywordId",
+            $"isMapped"
+          )
+        ).as("matches")
+      )
+
+  }
   private def matches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
     df.withColumn("sentence", explode($"sentences"))
@@ -42,22 +67,20 @@ object Processing extends Serializable with LazyLogging {
 
     val empcConfiguration = context.configuration.processing
 
-    val mappedInputs = Map(
-      // grounding is the output of Grounding step.
-      "grounding" -> empcConfiguration.grounding
-    )
+    val grounding = Grounding.compute()
 
-    val inputDataFrames = Helpers.readFrom(mappedInputs)
-    val epmcCoOccurrencesDf = coOccurrences(inputDataFrames("grounding").data)
-    val matchesDf = matches(inputDataFrames("grounding").data)
+    val epmcCoOccurrencesDf = coOccurrences(grounding)
+    val matchesDf = matches(grounding)
+    val literatureETL = createIndexForETL(matchesDf)
 
-    val outputs = context.configuration.processing.outputs
+    val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
       "cooccurrences" -> IOResource(epmcCoOccurrencesDf, outputs.cooccurrences),
       "matches" -> IOResource(matchesDf, outputs.matches)
     )
 
+    literatureETL.write.json("literature")
     Helpers.writeTo(dataframesToSave)
   }
 

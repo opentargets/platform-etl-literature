@@ -82,7 +82,7 @@ object Embedding extends Serializable with LazyLogging {
 
     val matchesPerPMID = mDF
       .groupBy($"pmid")
-      .agg(collect_list($"keywordId").as("terms"))
+      .agg(array_union(col("pmid"), collect_list($"keywordId").as("terms")))
 
     val matchesModel =
       makeWord2VecModel(matchesPerPMID, inputColName = "terms", outputColName = "synonyms")

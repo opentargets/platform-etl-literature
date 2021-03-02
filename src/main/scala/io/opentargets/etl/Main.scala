@@ -14,9 +14,6 @@ object ETL extends LazyLogging {
 
   def applySingleStep(step: String)(implicit context: ETLSessionContext): Unit = {
     step match {
-      case "grounding" =>
-        logger.info("run step Entity Grounding EPMC")
-        Grounding()
       case "processing" =>
         logger.info("run step Analysis")
         Processing()
