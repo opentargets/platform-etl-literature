@@ -10,6 +10,32 @@ import io.opentargets.etl.literature.spark.Helpers
 
 object Embedding extends Serializable with LazyLogging {
 
+  private def createIndexForETL(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
+    import sparkSession.implicits._
+
+    df.groupBy($"pmid", $"type")
+      .agg(
+        first($"organisms").as("organisms"),
+        first($"pubDate").as("pubDate"),
+        first($"section").as("section"),
+        first($"text").as("text"),
+        array_union(array(col("pmid")), collect_list($"keywordId")).as("terms"),
+        collect_list(
+          struct(
+            $"endInSentence",
+            $"label",
+            $"sectionEnd",
+            $"sectionStart",
+            $"startInSentence",
+            $"labelN",
+            $"keywordId",
+            $"isMapped"
+          )
+        ).as("matches")
+      )
+      .withColumnRenamed("type", "category")
+  }
+
   private def makeWord2VecModel(
       df: DataFrame,
       inputColName: String,
@@ -106,8 +132,12 @@ object Embedding extends Serializable with LazyLogging {
 
     val inputDataFrames = Helpers.readFrom(mappedInputs)
     val matchesFiltered = inputDataFrames("matches").data.filter($"isMapped" === true)
+    val literatureETL = createIndexForETL(matchesFiltered)
     val matchesModels = generateWord2VecModel(matchesFiltered)
     val matchesSynonyms = generateSynonyms(matchesFiltered, matchesModels)
+
+    // to do: add to the output
+    literatureETL.write.json("literature")
 
     val outputs = context.configuration.embedding.outputs
     // To do: change output approach

@@ -23,31 +23,6 @@ object Processing extends Serializable with LazyLogging {
 
   }
 
-  private def createIndexForETL(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
-    import sparkSession.implicits._
-
-    df.filter($"isMapped" === true)
-      .groupBy($"pmid", $"type")
-      .agg(
-        first($"organisms").as("organisms"),
-        first($"pubDate").as("pubDate"),
-        first($"section").as("section"),
-        first($"text").as("text"),
-        collect_list(
-          struct(
-            $"endInSentence",
-            $"label",
-            $"sectionEnd",
-            $"sectionStart",
-            $"startInSentence",
-            $"labelN",
-            $"keywordId",
-            $"isMapped"
-          )
-        ).as("matches")
-      )
-
-  }
   private def matches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
     df.withColumn("sentence", explode($"sentences"))
@@ -71,7 +46,6 @@ object Processing extends Serializable with LazyLogging {
 
     val epmcCoOccurrencesDf = coOccurrences(grounding)
     val matchesDf = matches(grounding)
-    val literatureETL = createIndexForETL(matchesDf)
 
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
@@ -80,7 +54,6 @@ object Processing extends Serializable with LazyLogging {
       "matches" -> IOResource(matchesDf, outputs.matches)
     )
 
-    literatureETL.write.json("literature")
     Helpers.writeTo(dataframesToSave)
   }
 
