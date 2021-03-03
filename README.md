@@ -7,7 +7,6 @@ The aim of this application is to replace and to enhance the LINK project.
 Currently, the application can executes 3 steps 
 List of available steps:
 
-* Grounding
 * Processing
 * Embedding
 
@@ -25,23 +24,20 @@ This are the files generated from the `platform-etl-backend` search step. For a 
 found in `gs://ot-snapshots/etl/outputs/<release>/search/**/*.json`
 
 #### Obtain EPMC dataset
-TODO
+These files are provided by our collaborator EuropePMC. The files contains the list of the public and private publications
+with many metadata. Moreover, EPMC extractes text and sentence using Machine Learning approach.
 
 
-### Grounding step
-The grounding step extracts a common ground from EPMC entities and  the three main entities of Opentarget (Disease, Target, Drug). 
+### Processing step
+The processing step extracts a common ground from EPMC entities and  the three main entities of Opentarget (Disease, Target, Drug). 
 
-After a first phase of shaping of the data/entity types and the normalization of the texts, the next step is to join the two dataset in order to create whole comprehensive dataset with common information.
-
-The final dataset contains the mapped and unmapped information and the co-corrences between information.
-
-The input section needs two datasets. The `ot-luts` section contains the LookUp Table with the Opentarget info. 
-The dataset used for this specific project is the "search" step of [ETL project](https://github.com/opentargets/platform-etl-backend). 
+The input section needs two datasets. The `ot-luts` section contains the LookUp Table with the Opentarget info.
+The dataset used for this specific project is the "search" step of [ETL project](https://github.com/opentargets/platform-etl-backend).
 The `epmc` section contains the EPMC literature dataset.
-Finally the section `outputs` contains the grounding output path.
+The section `outputs` contains path for co-occurance dataset and matches dataset.
 
 ```
-  grounding {
+  processing {
    ot-luts {
      format = "json"
      path = "gs://open-targets-data-releases/21.02/output/ETL/search/**/*.json"
@@ -51,42 +47,27 @@ Finally the section `outputs` contains the grounding output path.
      path = "gs://otar-epmc/literature-files/**/*.jsonl"
    }
    outputs = {
-     grounding {
-       format = ${common.output-format}
-       path = ${common.output}"/grounding"
-     }
+    cooccurrences {
+      format = ${common.output-format}
+      path = ${common.output}"/cooccurrences"
+    }
+    matches {
+      format = ${common.output-format}
+      path = ${common.output}"/matches"
+    }
    }
  }
 ```
 
-### Processing step
-The processing step split the "grounding" output in two different datasets:
+
+After a first phase of shaping of the data/entity types and the normalization of the texts, the next step is to join the two dataset in order to create whole comprehensive dataset with common information.
+The step generates two different datasets:
 * Co-occorrence
 * Matches 
 
 The co-occorence dataset will be use by our data team to generate new features for our platform.
+The matches dataset will be use by the _embedding_ step to generate .
 
-The input section requires the output of the `grounding step`.
-The section `outputs` contains path for co-occurance dataset and matches dataset.
-
-```
-analysis {
-  grounding {
-    format = ${common.output-format}
-    path = ${common.output}"/grounding/"
-  }
-  outputs = {
-    cooccurrences {
-      format = ${common.output-format}
-      path = ${common.output}"/analysis/cooccurrences"
-    }
-    matches {
-      format = ${common.output-format}
-      path = ${common.output}"/analysis/matches"
-    }
-  }
-}
-```
 
 ### Embedding step
 TO DO
@@ -114,7 +95,6 @@ The inputs information are described under
 
 ```
 output dir:
-    grounding
     matches
     cooccurrences
     word2vec
