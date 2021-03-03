@@ -122,9 +122,9 @@ gcloud beta dataproc clusters create \
     --master-machine-type=n1-highmem-16 \
     --master-boot-disk-size=500 \
     --num-secondary-workers=0 \
-    --worker-machine-type=n1-standard-16 \
+    --worker-machine-type=n1-standard-64 \
     --num-workers=2 \
-    --worker-boot-disk-size=500 \
+    --worker-boot-disk-size=2000 \
     --zone=europe-west1-d \
     --project=open-targets-eu-dev \
     --region=europe-west1 \

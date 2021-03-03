@@ -7,6 +7,7 @@ import org.apache.spark.sql._
 import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import org.apache.spark.storage.StorageLevel
 import io.opentargets.etl.literature.spark.Helpers
+import io.opentargets.etl.literature.spark.Helpers.IOResource
 
 object Embedding extends Serializable with LazyLogging {
 
@@ -136,13 +137,18 @@ object Embedding extends Serializable with LazyLogging {
     val matchesModels = generateWord2VecModel(matchesFiltered)
     val matchesSynonyms = generateSynonyms(matchesFiltered, matchesModels)
 
-    // to do: add to the output
-    literatureETL.write.json("literature")
-
     val outputs = context.configuration.embedding.outputs
-    // To do: change output approach
+
+    // The matchesModel is a W2VModel and the output is parquet.
     matchesModels.save(outputs.wordvec.path)
-    matchesSynonyms.write.format(outputs.wordvecsyn.format).save(outputs.wordvecsyn.path)
+
+    logger.info(s"write to ${context.configuration.common.output}/literature-etl")
+    val dataframesToSave = Map(
+      "literature" -> IOResource(literatureETL, outputs.literature),
+      "word2vecSynonym" -> IOResource(matchesSynonyms, outputs.wordvecsyn)
+    )
+
+    Helpers.writeTo(dataframesToSave)
   }
 
 }
