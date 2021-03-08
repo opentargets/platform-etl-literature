@@ -10,7 +10,10 @@ import pureconfig.generic.auto._
 object Configuration extends LazyLogging {
   lazy val config: Result[OTConfig] = load
 
-  case class Common(defaultSteps: Seq[String], output: String, outputFormat: String)
+  case class Common(defaultSteps: Seq[String],
+                    partitions: Int,
+                    output: String,
+                    outputFormat: String)
 
   case class ProcessingOutput(cooccurrences: IOResourceConfig, matches: IOResourceConfig)
 

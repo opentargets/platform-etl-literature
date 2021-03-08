@@ -35,7 +35,7 @@ object Processing extends Serializable with LazyLogging {
 
   }
 
-  def apply()(implicit context: ETLSessionContext): Unit = {
+  def apply()(implicit context: ETLSessionContext): DataFrame = {
     implicit val ss: SparkSession = context.sparkSession
 
     logger.info("Processing step")
@@ -55,6 +55,8 @@ object Processing extends Serializable with LazyLogging {
     )
 
     Helpers.writeTo(dataframesToSave)
+
+    matchesDf
   }
 
 }
