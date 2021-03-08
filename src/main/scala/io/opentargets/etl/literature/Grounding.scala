@@ -28,7 +28,7 @@ object Grounding extends Serializable with LazyLogging {
         first($"organisms").as("organisms"),
         first($"pubDate").as("pubDate"),
         first($"section").as("section"),
-        collect_list(
+        collect_set(
           struct(
             $"endInSentence",
             $"label",
@@ -62,7 +62,7 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("isMapped", $"keywordId1".isNotNull and $"keywordId2".isNotNull)
       .groupBy($"pmid", $"text")
       .agg(
-        collect_list(
+        collect_set(
           struct(
             $"association",
             $"end1",
@@ -90,7 +90,7 @@ object Grounding extends Serializable with LazyLogging {
         .agg(
           first($"organisms").as("organisms"),
           first($"pubDate").as("pubDate"),
-          collect_list(
+          collect_set(
             struct(
               $"co-occurrence",
               $"matches",
