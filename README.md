@@ -76,7 +76,12 @@ The matches dataset will be use by the _embedding_ step to generate .
 
 
 ### Embedding step
-TO DO
+
+The "embedding" step generates three datasets with different goals.<br>
+The input section requires the matches dataset generates by the "processing" step. If the "embedding" step is called
+by the "all" step the matches dataset <br>
+The dataset literature-etl contains the data that are loaded into the Elasticsearch ETL data pipeline.
+The dataset word2vec
 
 ### Create a fat JAR
 

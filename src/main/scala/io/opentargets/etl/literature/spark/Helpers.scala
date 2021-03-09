@@ -83,9 +83,10 @@ object Helpers extends LazyLogging {
     logger.info(s"load dataset ${pathInfo.path} with ${pathInfo.toString}")
 
     pathInfo.options
-      .foldLeft(session.read.format(pathInfo.format)) { case ops =>
-        val options = ops._2.map(c => c.k -> c.v).toMap
-        ops._1.options(options)
+      .foldLeft(session.read.format(pathInfo.format)) {
+        case ops =>
+          val options = ops._2.map(c => c.k -> c.v).toMap
+          ops._1.options(options)
       }
       .load(pathInfo.path)
   }
@@ -93,14 +94,15 @@ object Helpers extends LazyLogging {
   def renameAllCols(schema: StructType, fn: String => String): StructType = {
 
     def renameDataType(dt: StructType): StructType =
-      StructType(dt.fields.map { case StructField(name, dataType, nullable, metadata) =>
-        val renamedDT = dataType match {
-          case st: StructType => renameDataType(st)
-          case ArrayType(elementType: StructType, containsNull) =>
-            ArrayType(renameDataType(elementType), containsNull)
-          case rest: DataType => rest
-        }
-        StructField(fn(name), renamedDT, nullable, metadata)
+      StructType(dt.fields.map {
+        case StructField(name, dataType, nullable, metadata) =>
+          val renamedDT = dataType match {
+            case st: StructType => renameDataType(st)
+            case ArrayType(elementType: StructType, containsNull) =>
+              ArrayType(renameDataType(elementType), containsNull)
+            case rest: DataType => rest
+          }
+          StructField(fn(name), renamedDT, nullable, metadata)
       })
 
     renameDataType(schema)
@@ -121,6 +123,18 @@ object Helpers extends LazyLogging {
 
     val newDF =
       session.createDataFrame(df.rdd, renameAllCols(df.schema, snakeToLowerCamelFnc))
+
+    newDF
+  }
+
+  // Replace the spaces from the schema fields with _
+  def replaceSpacesSchema(df: DataFrame)(implicit session: SparkSession): DataFrame = {
+
+    //replace all spaces with _
+    val renameFcn = (s: String) => s.replaceAll(" ", "_")
+
+    val newDF =
+      session.createDataFrame(df.rdd, renameAllCols(df.schema, renameFcn))
 
     newDF
   }
@@ -151,7 +165,6 @@ object Helpers extends LazyLogging {
     * @param IOResources map of String and relative IOResourceg
     * @return outputs itself.
     */
-
   def writeTo(outputs: IOResources)(implicit session: SparkSession): IOResources = {
     val datasetNamesStr = outputs.keys.mkString("(", ", ", ")")
     logger.info(s"write datasets $datasetNamesStr")
@@ -161,16 +174,18 @@ object Helpers extends LazyLogging {
       val data = out._2.data
       val conf = out._2.configuration
 
-      val pb = conf.partitionBy.foldLeft(data.write) { case (df, ops) =>
-        logger.debug(s"enabled partition by ${ops.toString}")
-        df.partitionBy(ops: _*)
+      val pb = conf.partitionBy.foldLeft(data.write) {
+        case (df, ops) =>
+          logger.debug(s"enabled partition by ${ops.toString}")
+          df.partitionBy(ops: _*)
       }
 
       conf.options
-        .foldLeft(pb) { case (df, ops) =>
-          logger.debug(s"write to ${conf.path} with options ${ops.toString}")
-          val options = ops.map(c => c.k -> c.v).toMap
-          df.options(options)
+        .foldLeft(pb) {
+          case (df, ops) =>
+            logger.debug(s"write to ${conf.path} with options ${ops.toString}")
+            val options = ops.map(c => c.k -> c.v).toMap
+            df.options(options)
 
         }
         .format(conf.format)

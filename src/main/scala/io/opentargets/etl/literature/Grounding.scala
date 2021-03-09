@@ -140,6 +140,7 @@ object Grounding extends Serializable with LazyLogging {
   def compute(empcConfiguration: ProcessingSection)(
       implicit context: ETLSessionContext): DataFrame = {
     implicit val ss: SparkSession = context.sparkSession
+
     logger.info("Grounding step")
 
     val mappedInputs = Map(
@@ -149,8 +150,12 @@ object Grounding extends Serializable with LazyLogging {
     )
 
     val inputDataFrames = Helpers.readFrom(mappedInputs)
+    val epmcDf = Helpers.replaceSpacesSchema(inputDataFrames("epmc").data)
     val luts = broadcast(loadLUTs(inputDataFrames("luts").data))
-    val entities = loadEntities(inputDataFrames("epmc").data)
+    logger.info("Loaded LUTS")
+
+    val entities = loadEntities(epmcDf)
+    logger.info("Loaded entities luts")
 
     resolveEntities(entities, luts)
   }

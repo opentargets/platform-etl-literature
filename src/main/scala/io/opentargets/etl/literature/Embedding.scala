@@ -15,6 +15,8 @@ object Embedding extends Serializable with LazyLogging {
   private def createIndexForETL(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
+    logger.info(s"create literature-etl index for ETL")
+
     df.groupBy($"pmid", $"type")
       .agg(
         first($"organisms").as("organisms"),
