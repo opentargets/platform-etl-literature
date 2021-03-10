@@ -28,6 +28,7 @@ object Configuration extends LazyLogging {
                              literature: IOResourceConfig)
 
   case class EmbeddingSection(
+      numSynonyms: Int,
       matches: IOResourceConfig,
       outputs: EmbeddingOutput
   )

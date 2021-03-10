@@ -13,9 +13,9 @@ List of available steps:
 
 ### Requirements
 
-* OpenJDK 1.8
+* OpenJDK 11
 * scala 2.12.x (through SDKMAN is simple)
-* Apache Spark 3.0.1
+* Apache Spark 3.1.1
 * Opentargets entities 
 * EPMC entities
 
@@ -123,14 +123,14 @@ output dir:
 
 Here how to create a cluster using `gcloud` tool
 
-The current image version is `preview-debian10` because is the only image that supports Spark3.
+The current image version is `preview` because is the only image that supports Java11 and Spark3.
 
 It is warmly reccomended to use n1-highmem-64 (64cpu and 416GB RAM). It is important to highlight that the field **partition** inside of the config file should be half of the total number of total CPU.
 
 ```sh
 gcloud beta dataproc clusters create \
     etl-cluster \
-    --image-version=preview-debian10 \
+    --image-version=preview \
     --properties=yarn:yarn.nodemanager.vmem-check-enabled=false,spark:spark.debug.maxToStringFields=1024,spark:spark.master=yarn \
     --master-machine-type=n1-highmem-64 \
     --master-boot-disk-size=2000 \

@@ -8,7 +8,6 @@ import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import org.apache.spark.storage.StorageLevel
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.IOResource
-import org.apache.commons.configuration.Configuration
 
 object Embedding extends Serializable with LazyLogging {
 
@@ -49,8 +48,10 @@ object Embedding extends Serializable with LazyLogging {
     logger.info(s"compute Word2Vec model for input col ${inputColName} into ${outputColName}")
 
     val w2vModel = new Word2Vec()
+      .setWindowSize(10)
       .setNumPartitions(numPartitions)
-      .setMaxIter(10)
+      .setMaxIter(5)
+      //.setNumPartitions(numPartitions).setMaxIter(10)
       .setInputCol(inputColName)
       .setOutputCol(outputColName)
 
@@ -62,7 +63,7 @@ object Embedding extends Serializable with LazyLogging {
     model
   }
 
-  private def generateSynonyms(df: DataFrame, matchesModel: Word2VecModel)(
+  private def generateSynonyms(df: DataFrame, matchesModel: Word2VecModel, numSynonyms: Int)(
       implicit
       sparkSession: SparkSession) = {
     import sparkSession.implicits._
@@ -77,9 +78,10 @@ object Embedding extends Serializable with LazyLogging {
     logger.info(
       "compute the predictions to the associations DF with the precomputed model FPGrowth"
     )
+
     val matchesWithSynonymsFn = udf((word: String) => {
       try {
-        bcModel.value.findSynonymsArray(word, 50)
+        bcModel.value.findSynonymsArray(word, numSynonyms)
       } catch {
         case _ => Array.empty[(String, Double)]
       }
@@ -136,7 +138,8 @@ object Embedding extends Serializable with LazyLogging {
     val matchesFiltered = matches.filter($"isMapped" === true)
     val literatureETL = createIndexForETL(matchesFiltered)
     val matchesModels = generateWord2VecModel(matchesFiltered, configuration.common.partitions)
-    val matchesSynonyms = generateSynonyms(matchesFiltered, matchesModels)
+    val matchesSynonyms =
+      generateSynonyms(matchesFiltered, matchesModels, configuration.embedding.numSynonyms)
 
     val outputs = configuration.embedding.outputs
 
