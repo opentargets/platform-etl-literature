@@ -48,10 +48,11 @@ object Embedding extends Serializable with LazyLogging {
     logger.info(s"compute Word2Vec model for input col ${inputColName} into ${outputColName}")
 
     val w2vModel = new Word2Vec()
-      .setWindowSize(10)
+      .setWindowSize(5)
       .setNumPartitions(numPartitions)
-      .setMaxIter(5)
-      //.setNumPartitions(numPartitions).setMaxIter(10)
+      .setMaxIter(1)
+      .setMinCount(3)
+      .setStepSize(0.025)
       .setInputCol(inputColName)
       .setOutputCol(outputColName)
 
@@ -116,7 +117,7 @@ object Embedding extends Serializable with LazyLogging {
 
     val matchesPerPMID = mDF
       .groupBy($"pmid")
-      .agg(array_union(array(col("pmid")), collect_set($"keywordId")).as("terms"))
+      .agg(collect_set($"keywordId").as("terms"))
 
     val matchesModel =
       makeWord2VecModel(matchesPerPMID,
