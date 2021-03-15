@@ -20,14 +20,11 @@ object Embedding extends Serializable with LazyLogging {
     df.transform(foldMatches)
       .withColumn("terms",
         flatten(
-          transform($"sentences",
-            x => transform(x,
-              y => y.getField("keywordId")
-            )
+          transform($"sentences.matches",
+            x => x.getField("keywordId")
           )
         )
       )
-      .withColumnRenamed("type", "category")
   }
 
   private def makeWord2VecModel(
@@ -62,7 +59,7 @@ object Embedding extends Serializable with LazyLogging {
 
     logger.info("produce the list of unique terms (GP, DS, CD)")
     val keywords = df
-      .select($"keywordId")
+      .select($"match.keywordId")
       .distinct()
 
     val bcModel = sparkSession.sparkContext.broadcast(matchesModel)
@@ -104,14 +101,8 @@ object Embedding extends Serializable with LazyLogging {
       implicit sparkSession: SparkSession) = {
     import sparkSession.implicits._
 
-    val mDF = df
-
-    val matchesPerPMID = mDF
-      .groupBy($"pmid")
-      .agg(collect_set($"keywordId").as("terms"))
-
     val matchesModel =
-      makeWord2VecModel(matchesPerPMID,
+      makeWord2VecModel(df,
                         numPartitions,
                         inputColName = "terms",
                         outputColName = "synonyms")
@@ -127,11 +118,10 @@ object Embedding extends Serializable with LazyLogging {
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
     logger.info("Number of partitions: " + configuration.common.partitions.toString())
 
-    val matchesFiltered = matches
-    val literatureETL = createIndexForETL(matchesFiltered)
-    val matchesModels = generateWord2VecModel(matchesFiltered, configuration.common.partitions)
+    val literatureETL = createIndexForETL(matches)
+    val matchesModels = generateWord2VecModel(literatureETL.select("terms"), configuration.common.partitions)
     val matchesSynonyms =
-      generateSynonyms(matchesFiltered, matchesModels, configuration.embedding.numSynonyms)
+      generateSynonyms(matches, matchesModels, configuration.embedding.numSynonyms)
 
     val outputs = configuration.embedding.outputs
 

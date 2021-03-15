@@ -53,7 +53,7 @@ object Processing extends Serializable with LazyLogging {
     )
 
     Helpers.writeTo(dataframesToSave)
-    grounding("matches")
+    grounding("matches").filter(col("match.isMapped") === true)
   }
 
 }
