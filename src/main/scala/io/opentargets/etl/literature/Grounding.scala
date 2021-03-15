@@ -12,7 +12,7 @@ object Grounding extends Serializable with LazyLogging {
 
   def resolveEntities(entities: DataFrame, luts: DataFrame)(
       implicit
-      sparkSession: SparkSession): DataFrame = {
+      sparkSession: SparkSession): Map[String, DataFrame] = {
     import sparkSession.implicits._
 
     val mergedMatches = entities
@@ -23,25 +23,19 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("labelN", Helpers.normalise($"label"))
       .join(luts, Seq("type", "labelN"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
-      .groupBy($"pmid", $"text")
-      .agg(
-        first($"organisms").as("organisms"),
-        first($"pubDate").as("pubDate"),
-        first($"section").as("section"),
-        collect_set(
-          struct(
-            $"endInSentence",
-            $"label",
-            $"sectionEnd",
-            $"sectionStart",
-            $"startInSentence",
-            $"type",
-            $"labelN",
-            $"keywordId",
-            $"isMapped"
-          )
-        ).as("matches")
-      )
+      .withColumn("match",
+                  struct(
+                    $"endInSentence",
+                    $"label",
+                    $"sectionEnd",
+                    $"sectionStart",
+                    $"startInSentence",
+                    $"type",
+                    $"labelN",
+                    $"keywordId",
+                    $"isMapped"
+                  ))
+      .select($"pmid", $"pubDate", $"organisms", $"section", $"text", $"match")
 
     val mergedCooc = entities
       .withColumn("cooc", explode($"co-occurrence"))
@@ -60,47 +54,32 @@ object Grounding extends Serializable with LazyLogging {
       .withColumnRenamed("keywordId", "keywordId2")
       .drop("type", "labelN")
       .withColumn("isMapped", $"keywordId1".isNotNull and $"keywordId2".isNotNull)
-      .groupBy($"pmid", $"text")
-      .agg(
-        collect_set(
-          struct(
-            $"association",
-            $"end1",
-            $"end2",
-            $"evidence_score",
-            $"label1",
-            $"keywordId1",
-            $"label2",
-            $"keywordId2",
-            $"relation",
-            $"start1",
-            $"start2",
-            concat_ws("-", $"type1", $"type2").as("type"),
-            $"type1",
-            $"type2",
-            $"isMapped"
-          )
-        ).as("co-occurrence")
-      )
-
-    val merged =
-      mergedMatches
-        .join(mergedCooc, Seq("pmid", "text"), "left_outer")
-        .groupBy($"pmid")
-        .agg(
-          first($"organisms").as("organisms"),
-          first($"pubDate").as("pubDate"),
-          collect_set(
-            struct(
-              $"co-occurrence",
-              $"matches",
-              $"section",
-              $"text"
-            )
-          ).as("sentences")
+      .withColumn(
+        "co-occurrence",
+        struct(
+          $"association",
+          $"end1",
+          $"end2",
+          $"evidence_score",
+          $"label1",
+          $"keywordId1",
+          $"label2",
+          $"keywordId2",
+          $"relation",
+          $"start1",
+          $"start2",
+          concat_ws("-", $"type1", $"type2").as("type"),
+          $"type1",
+          $"type2",
+          $"isMapped"
         )
+      )
+      .select($"pmid", $"pubDate", $"organisms", $"section", $"text", $"co-occurrence")
 
-    merged
+    Map(
+      "matches" -> mergedMatches,
+      "cooccurrences" -> mergedCooc
+    )
   }
 
   /* it generates a dataframe with a type (DS,GP,CD) in order to match EPMC info */
@@ -127,10 +106,47 @@ object Grounding extends Serializable with LazyLogging {
     data
   }
 
+  def foldCooccurrences(df: DataFrame)(implicit sparkSession: SparkSession) = {
+    import sparkSession.implicits._
+    df.groupBy($"pmid", $"section", $"text")
+      .agg(
+        first($"pubDate").as("pubDate"),
+        first($"organisms").as("organisms"),
+        collect_list($"co-occurrence").as("co-occurrence")
+      )
+      .filter($"co-occurrence".isNotNull and size($"co-occurrence") > 0)
+      .groupBy($"pmid")
+      .agg(
+        first($"pubDate").as("pubDate"),
+        first($"organisms").as("organisms"),
+        collect_list(struct($"text", $"section", $"co-occurrence")).as("sentences")
+      )
+      .filter($"sentences".isNotNull and size($"sentences") > 0)
+  }
+
+  def foldMatches(df: DataFrame)(implicit sparkSession: SparkSession) = {
+    import sparkSession.implicits._
+    df.groupBy($"pmid", $"section", $"text")
+      .agg(
+        first($"pubDate").as("pubDate"),
+        first($"organisms").as("organisms"),
+        collect_list($"match").as("matches")
+      )
+      .filter($"matches".isNotNull and size($"matches") > 0)
+      .groupBy($"pmid")
+      .agg(
+        first($"pubDate").as("pubDate"),
+        first($"organisms").as("organisms"),
+        collect_list(struct($"text", $"section", $"matches")).as("sentences")
+      )
+      .filter($"sentences".isNotNull and size($"sentences") > 0)
+  }
+
   def loadEntities(df: DataFrame)(implicit sparkSession: SparkSession) = {
     import sparkSession.implicits._
 
-    df.withColumn("sentence", explode($"sentences"))
+    df.filter($"pmid".isNotNull and $"pmid" =!= "")
+      .withColumn("sentence", explode($"sentences"))
       .drop("sentences")
       .selectExpr("*", "sentence.*")
       .drop("sentence")
@@ -138,7 +154,7 @@ object Grounding extends Serializable with LazyLogging {
   }
 
   def compute(empcConfiguration: ProcessingSection)(
-      implicit context: ETLSessionContext): DataFrame = {
+      implicit context: ETLSessionContext): Map[String, DataFrame] = {
     implicit val ss: SparkSession = context.sparkSession
 
     logger.info("Grounding step")

@@ -1,6 +1,7 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
+import io.opentargets.etl.literature.Grounding.foldMatches
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
@@ -16,25 +17,15 @@ object Embedding extends Serializable with LazyLogging {
 
     logger.info(s"create literature-etl index for ETL")
 
-    df.groupBy($"pmid", $"type")
-      .agg(
-        first($"organisms").as("organisms"),
-        first($"pubDate").as("pubDate"),
-        first($"section").as("section"),
-        first($"text").as("text"),
-        array_union(array(col("pmid")), collect_set($"keywordId")).as("terms"),
-        collect_set(
-          struct(
-            $"endInSentence",
-            $"label",
-            $"sectionEnd",
-            $"sectionStart",
-            $"startInSentence",
-            $"labelN",
-            $"keywordId",
-            $"isMapped"
+    df.transform(foldMatches)
+      .withColumn("terms",
+        flatten(
+          transform($"sentences",
+            x => transform(x,
+              y => y.getField("keywordId")
+            )
           )
-        ).as("matches")
+        )
       )
       .withColumnRenamed("type", "category")
   }
@@ -113,7 +104,7 @@ object Embedding extends Serializable with LazyLogging {
       implicit sparkSession: SparkSession) = {
     import sparkSession.implicits._
 
-    val mDF = df.filter($"isMapped" === true)
+    val mDF = df
 
     val matchesPerPMID = mDF
       .groupBy($"pmid")
@@ -136,7 +127,7 @@ object Embedding extends Serializable with LazyLogging {
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
     logger.info("Number of partitions: " + configuration.common.partitions.toString())
 
-    val matchesFiltered = matches.filter($"isMapped" === true)
+    val matchesFiltered = matches
     val literatureETL = createIndexForETL(matchesFiltered)
     val matchesModels = generateWord2VecModel(matchesFiltered, configuration.common.partitions)
     val matchesSynonyms =

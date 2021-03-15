@@ -15,7 +15,9 @@ object Configuration extends LazyLogging {
                     output: String,
                     outputFormat: String)
 
-  case class ProcessingOutput(cooccurrences: IOResourceConfig, matches: IOResourceConfig)
+  case class ProcessingOutput(rawEvidence: IOResourceConfig,
+                              cooccurrences: IOResourceConfig,
+                              matches: IOResourceConfig)
 
   case class ProcessingSection(
       otLuts: IOResourceConfig,
