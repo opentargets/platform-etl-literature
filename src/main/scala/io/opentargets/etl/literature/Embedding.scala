@@ -75,7 +75,7 @@ object Embedding extends Serializable with LazyLogging {
       try {
         bcModel.value.findSynonymsArray(word, numSynonyms)
       } catch {
-        case _ => Array.empty[(String, Double)]
+        case _ : Throwable => Array.empty[(String, Double)]
       }
     })
 

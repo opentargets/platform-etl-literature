@@ -14,8 +14,8 @@ object Processing extends Serializable with LazyLogging {
   private def filterCooccurrences(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
-    df.selectExpr("*", "cooc.*")
-      .drop("cooc", "co-occurrence")
+    df.selectExpr("*", "`co-occurrence`.*")
+      .drop("co-occurrence")
       .filter($"isMapped" === true)
 
   }
@@ -47,7 +47,7 @@ object Processing extends Serializable with LazyLogging {
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
-      "rawEvidences" -> IOResource(rawEvidences, outputs.cooccurrences),
+      "rawEvidences" -> IOResource(rawEvidences, outputs.rawEvidence),
       "cooccurrences" -> IOResource(coocs, outputs.cooccurrences),
       "matches" -> IOResource(matches, outputs.matches)
     )

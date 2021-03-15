@@ -6,7 +6,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{ArrayType, DataType, StructField, StructType}
+import org.apache.spark.sql.types._
 
 import scala.util.Random
 

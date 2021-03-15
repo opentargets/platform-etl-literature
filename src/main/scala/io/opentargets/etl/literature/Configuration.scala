@@ -4,6 +4,7 @@ import com.typesafe.config.ConfigFactory
 import pureconfig.ConfigReader.Result
 import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.spark.Helpers.IOResourceConfig
+import pureconfig.ConfigReader.Result
 import pureconfig._
 import pureconfig.generic.auto._
 
