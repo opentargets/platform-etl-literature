@@ -10,7 +10,7 @@ object Dependencies {
 
   lazy val configDeps = Seq(
     "org.yaml" % "snakeyaml" % "1.21",
-    "com.github.pureconfig" %% "pureconfig" % "0.12.3"
+    "com.github.pureconfig" %% "pureconfig" % "0.14.1"
   )
 
   lazy val loggingDeps = Seq(
@@ -36,6 +36,6 @@ object Dependencies {
     "org.scalatest" %% "scalatest" % testVersion % "test"
   )
 
-  lazy val typeSafeConfig = "com.typesafe" % "config" % "1.4.0"
+  lazy val typeSafeConfig = "com.typesafe" % "config" % "1.4.1"
 
 }
