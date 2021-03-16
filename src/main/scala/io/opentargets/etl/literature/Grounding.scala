@@ -112,7 +112,7 @@ object Grounding extends Serializable with LazyLogging {
       .agg(
         first($"pubDate").as("pubDate"),
         first($"organisms").as("organisms"),
-        collect_list($"co-occurrence").as("co-occurrence")
+        collect_set($"co-occurrence").as("co-occurrence")
       )
       .filter($"co-occurrence".isNotNull and size($"co-occurrence") > 0)
       .groupBy($"pmid")
@@ -130,7 +130,7 @@ object Grounding extends Serializable with LazyLogging {
       .agg(
         first($"pubDate").as("pubDate"),
         first($"organisms").as("organisms"),
-        collect_list($"match").as("matches")
+        collect_set($"match").as("matches")
       )
       .filter($"matches".isNotNull and size($"matches") > 0)
       .groupBy($"pmid")
