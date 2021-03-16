@@ -14,14 +14,14 @@ lazy val root = (project in file("."))
       )
     ),
     name := "io-opentargets-etl-literature",
-    version := "0.1",
+    version := "0.2",
     resolvers ++= buildResolvers,
+    libraryDependencies ++= sparkDeps,
     libraryDependencies ++= aoyi,
     libraryDependencies += betterFiles,
     libraryDependencies ++= configDeps,
     libraryDependencies ++= loggingDeps,
     libraryDependencies += scalaCheck,
-    libraryDependencies ++= sparkDeps,
     libraryDependencies ++= testingDeps,
     libraryDependencies += typeSafeConfig,
     assemblyMergeStrategy in assembly := {

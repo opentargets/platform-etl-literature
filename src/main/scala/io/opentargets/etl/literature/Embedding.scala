@@ -1,6 +1,7 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
+import io.opentargets.etl.literature.Grounding.foldMatches
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
@@ -16,27 +17,14 @@ object Embedding extends Serializable with LazyLogging {
 
     logger.info(s"create literature-etl index for ETL")
 
-    df.groupBy($"pmid", $"type")
-      .agg(
-        first($"organisms").as("organisms"),
-        first($"pubDate").as("pubDate"),
-        first($"section").as("section"),
-        first($"text").as("text"),
-        array_union(array(col("pmid")), collect_set($"keywordId")).as("terms"),
-        collect_set(
-          struct(
-            $"endInSentence",
-            $"label",
-            $"sectionEnd",
-            $"sectionStart",
-            $"startInSentence",
-            $"labelN",
-            $"keywordId",
-            $"isMapped"
+    df.transform(foldMatches)
+      .withColumn("terms",
+        flatten(
+          transform($"sentences.matches",
+            x => x.getField("keywordId")
           )
-        ).as("matches")
+        )
       )
-      .withColumnRenamed("type", "category")
   }
 
   private def makeWord2VecModel(
@@ -48,10 +36,11 @@ object Embedding extends Serializable with LazyLogging {
     logger.info(s"compute Word2Vec model for input col ${inputColName} into ${outputColName}")
 
     val w2vModel = new Word2Vec()
-      .setWindowSize(10)
+      .setWindowSize(5)
       .setNumPartitions(numPartitions)
-      .setMaxIter(5)
-      //.setNumPartitions(numPartitions).setMaxIter(10)
+      .setMaxIter(1)
+      .setMinCount(3)
+      .setStepSize(0.025)
       .setInputCol(inputColName)
       .setOutputCol(outputColName)
 
@@ -70,7 +59,7 @@ object Embedding extends Serializable with LazyLogging {
 
     logger.info("produce the list of unique terms (GP, DS, CD)")
     val keywords = df
-      .select($"keywordId")
+      .select($"match.keywordId")
       .distinct()
 
     val bcModel = sparkSession.sparkContext.broadcast(matchesModel)
@@ -83,7 +72,7 @@ object Embedding extends Serializable with LazyLogging {
       try {
         bcModel.value.findSynonymsArray(word, numSynonyms)
       } catch {
-        case _ => Array.empty[(String, Double)]
+        case _ : Throwable => Array.empty[(String, Double)]
       }
     })
 
@@ -112,14 +101,8 @@ object Embedding extends Serializable with LazyLogging {
       implicit sparkSession: SparkSession) = {
     import sparkSession.implicits._
 
-    val mDF = df.filter($"isMapped" === true)
-
-    val matchesPerPMID = mDF
-      .groupBy($"pmid")
-      .agg(array_union(array(col("pmid")), collect_set($"keywordId")).as("terms"))
-
     val matchesModel =
-      makeWord2VecModel(matchesPerPMID,
+      makeWord2VecModel(df,
                         numPartitions,
                         inputColName = "terms",
                         outputColName = "synonyms")
@@ -135,11 +118,10 @@ object Embedding extends Serializable with LazyLogging {
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
     logger.info("Number of partitions: " + configuration.common.partitions.toString())
 
-    val matchesFiltered = matches.filter($"isMapped" === true)
-    val literatureETL = createIndexForETL(matchesFiltered)
-    val matchesModels = generateWord2VecModel(matchesFiltered, configuration.common.partitions)
+    val literatureETL = createIndexForETL(matches)
+    val matchesModels = generateWord2VecModel(literatureETL.select("terms"), configuration.common.partitions)
     val matchesSynonyms =
-      generateSynonyms(matchesFiltered, matchesModels, configuration.embedding.numSynonyms)
+      generateSynonyms(matches, matchesModels, configuration.embedding.numSynonyms)
 
     val outputs = configuration.embedding.outputs
 
