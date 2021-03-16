@@ -19,12 +19,12 @@ object Embedding extends Serializable with LazyLogging {
 
     df.transform(foldMatches)
       .withColumn("terms",
-        flatten(
+        array_distinct(flatten(
           transform($"sentences.matches",
             x => x.getField("keywordId")
           )
         )
-      )
+      ))
   }
 
   private def makeWord2VecModel(
