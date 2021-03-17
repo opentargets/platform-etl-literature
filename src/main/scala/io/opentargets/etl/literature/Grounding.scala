@@ -150,6 +150,7 @@ object Grounding extends Serializable with LazyLogging {
       .drop("sentences")
       .selectExpr("*", "sentence.*")
       .drop("sentence")
+      .withColumn("section", lower($"section"))
 
   }
 
