@@ -19,19 +19,7 @@ object Embedding extends Serializable with LazyLogging {
 
     logger.info(s"create literature-etl index for ETL")
     df.filter($"section".isNotNull and $"isMapped" === true)
-      .withColumn("match",
-                  struct(
-                    $"endInSentence",
-                    $"label",
-                    $"sectionEnd",
-                    $"sectionStart",
-                    $"startInSentence",
-                    $"type",
-                    $"labelN",
-                    $"keywordId",
-                    $"isMapped"
-                  ))
-      .withColumn("keywordId", expr("match.keywordId"))
+      .withColumn("keywordId", $"match.keywordId")
       .withColumn("countsPerKey", count($"keywordId").over(wPerKey))
       .withColumn("countsPerTerm", collect_set(struct($"keywordId", $"countsPerKey")).over(wPerPmid))
       .withColumn("terms", collect_set($"keywordId").over(wPerPmid))
