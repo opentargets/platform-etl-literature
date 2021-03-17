@@ -129,7 +129,7 @@ object Embedding extends Serializable with LazyLogging {
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
     logger.info("Number of partitions: " + configuration.common.partitions.toString())
 
-    val literatureETL = matches.transform(aggregateMatches).persist()
+    val literatureETL = matches.transform(aggregateMatches)
     val matchesModels =
       generateWord2VecModel(literatureETL.select("terms"), configuration.common.partitions)
     val matchesSynonyms =
