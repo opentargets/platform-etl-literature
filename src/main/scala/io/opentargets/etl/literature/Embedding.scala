@@ -37,8 +37,7 @@ object Embedding extends Serializable with LazyLogging {
       .withColumn("terms", collect_set($"keywordId").over(wPerPmid))
       .groupBy($"pmid", $"section")
       .agg(
-        first($"pubDate").as("pubDate"),
-        first($"organisms").as("organisms"),
+        first($"pubDate").as("pubDate"), first($"organisms").as("organisms"),
         first($"countsPerTerm").as("countsPerTerm"),
         first($"terms").as("terms"),
         collect_set($"match").as("matches")
@@ -143,7 +142,6 @@ object Embedding extends Serializable with LazyLogging {
     logger.info("Number of partitions: " + configuration.common.partitions.toString())
 
     val literatureETL = matches.transform(aggregateMatches).persist()
-    literatureETL.show
     val matchesModels =
       generateWord2VecModel(literatureETL.select("terms"), configuration.common.partitions)
     val matchesSynonyms =
