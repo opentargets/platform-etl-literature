@@ -8,6 +8,7 @@ import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.IOResource
 import org.apache.spark.sql.expressions.Window
+import org.apache.spark.storage.StorageLevel
 
 object Embedding extends Serializable with LazyLogging {
 
@@ -17,12 +18,19 @@ object Embedding extends Serializable with LazyLogging {
     val wPerKey = Window.partitionBy($"pmid", $"keywordId")
     val wPerPmid = Window.partitionBy($"pmid")
 
-    logger.info(s"create literature-etl index for ETL")
-    df.filter($"section".isNotNull and $"isMapped" === true)
+    val countsPerKey = df.filter($"section".isNotNull and $"isMapped" === true)
+      .select($"pmid", $"keywordId")
       .withColumn("countsPerKey", count($"keywordId").over(wPerKey))
       .withColumn("countsPerTerm", collect_set(struct($"keywordId", $"countsPerKey")).over(wPerPmid))
       .withColumn("terms", collect_set($"keywordId").over(wPerPmid))
-      .withColumn("match",
+      .drop("countsPerKey", "keywordId")
+      .repartitionByRange($"pmid".asc).persist(StorageLevel.DISK_ONLY)
+
+    logger.info(s"create literature-etl index for ETL")
+    val aggregated = df.filter($"section".isNotNull and
+      $"isMapped" === true and
+      $"section".isInCollection(Seq("title", "abstract"))
+    ).withColumn("match",
         struct(
           $"endInSentence",
           $"label",
@@ -32,26 +40,20 @@ object Embedding extends Serializable with LazyLogging {
           $"type",
           $"keywordId",
           $"isMapped"))
-      .select($"pmid", $"pubDate", $"organisms", $"section", $"match", $"keywordId", $"terms",
-        $"countsPerKey", $"countsPerTerm")
-      .drop("keywordId")
-      .filter($"section".isInCollection(Seq("title", "abstract")))
-      .dropDuplicates("pmid", "section", "match")
       .groupBy($"pmid", $"section")
       .agg(
         first($"pubDate").as("pubDate"), first($"organisms").as("organisms"),
-        first($"countsPerTerm").as("countsPerTerm"),
-        first($"terms").as("terms"),
-        collect_list($"match").as("matches"))
+        array_distinct(collect_list($"match")).as("matches"))
       .groupBy($"pmid")
       .agg(
         first($"pubDate").as("pubDate"),
         first($"organisms").as("organisms"),
-        first($"countsPerTerm").as("countsPerTerm"),
-        first($"terms").as("terms"),
         collect_list(
-            struct($"section", $"matches").as("sentences"))
-      )
+            struct($"section", $"matches")).as("sentences")
+      ).join(countsPerKey, Seq("pmid"), "left_outer")
+
+    countsPerKey.unpersist()
+    aggregated
   }
 
   private def makeWord2VecModel(
@@ -139,7 +141,7 @@ object Embedding extends Serializable with LazyLogging {
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
     logger.info("Number of partitions: " + configuration.common.partitions.toString())
 
-    val literatureETL = matches.transform(aggregateMatches)
+    val literatureETL = matches.transform(aggregateMatches).persist(StorageLevel.DISK_ONLY)
 
     logger.info(s"write to /literature-etl")
     val saveLiteratureDF = Map(
