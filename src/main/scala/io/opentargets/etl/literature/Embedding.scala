@@ -32,9 +32,10 @@ object Embedding extends Serializable with LazyLogging {
           $"type",
           $"keywordId",
           $"isMapped"))
-      .select($"pmid", $"pubDate", $"organisms", $"section", $"text", $"match", $"keywordId", $"terms",
+      .select($"pmid", $"pubDate", $"organisms", $"section", $"match", $"keywordId", $"terms",
         $"countsPerKey", $"countsPerTerm")
       .drop("keywordId")
+      .filter($"section".isInCollection(Seq("title", "abstract")))
       .dropDuplicates("pmid", "section", "match")
       .groupBy($"pmid", $"section")
       .agg(
@@ -48,13 +49,8 @@ object Embedding extends Serializable with LazyLogging {
         first($"organisms").as("organisms"),
         first($"countsPerTerm").as("countsPerTerm"),
         first($"terms").as("terms"),
-        filter(
-          collect_list(
-            struct($"section", $"matches")),
-          x =>
-            x.getField("section")
-              .isInCollection(Seq("title", "abstract"))
-        ).as("sentences")
+        collect_list(
+            struct($"section", $"matches").as("sentences"))
       )
   }
 
