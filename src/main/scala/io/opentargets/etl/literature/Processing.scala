@@ -42,6 +42,7 @@ object Processing extends Serializable with LazyLogging {
       .withColumn("countsPerTerm", collect_set(struct($"keywordId", $"countsPerKey")).over(wPerPmid))
       .withColumn("terms", collect_set($"keywordId").over(wPerPmid))
       .drop("countsPerKey", "keywordId")
+      .dropDuplicates("pmid")
 
     logger.info(s"create literature-etl index for ETL")
     val aggregated = df.filter($"section".isNotNull and
