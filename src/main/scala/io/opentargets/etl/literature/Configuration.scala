@@ -18,7 +18,8 @@ object Configuration extends LazyLogging {
 
   case class ProcessingOutput(rawEvidence: IOResourceConfig,
                               cooccurrences: IOResourceConfig,
-                              matches: IOResourceConfig)
+                              matches: IOResourceConfig,
+                              literatureIndex: IOResourceConfig)
 
   case class ProcessingSection(
       otLuts: IOResourceConfig,
@@ -27,12 +28,11 @@ object Configuration extends LazyLogging {
   )
 
   case class EmbeddingOutput(wordvec: IOResourceConfig,
-                             wordvecsyn: IOResourceConfig,
-                             literature: IOResourceConfig)
+                             wordvecsyn: IOResourceConfig)
 
   case class EmbeddingSection(
       numSynonyms: Int,
-      matches: IOResourceConfig,
+      input: IOResourceConfig,
       outputs: EmbeddingOutput
   )
 
