@@ -32,7 +32,8 @@ object Embedding extends Serializable with LazyLogging {
           $"type",
           $"keywordId",
           $"isMapped"))
-      .select($"pmid", $"pubDate", $"organisms", $"section", $"text", $"match", $"keywordId")
+      .select($"pmid", $"pubDate", $"organisms", $"section", $"text", $"match", $"keywordId", $"terms",
+        $"countsPerKey", $"countsPerTerm")
       .drop("keywordId")
       .dropDuplicates("pmid", "section", "match")
       .groupBy($"pmid", $"section")
