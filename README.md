@@ -13,7 +13,7 @@ List of available steps:
 
 ### Requirements
 
-* OpenJDK 11
+* OpenJDK 8
 * scala 2.12.x (through SDKMAN is simple)
 * Apache Spark 3.1.1
 * Opentargets entities 
@@ -123,26 +123,24 @@ output dir:
 
 Here how to create a cluster using `gcloud` tool
 
-The current image version is `preview` because is the only image that supports Java11 and Spark3.
+The current image version is `preview` because is the only image that supports Java8 and Spark3.
 
 It is warmly reccomended to use n1-highmem-64 (64cpu and 416GB RAM). It is important to highlight that the field **partition** inside of the config file should be half of the total number of total CPU.
 
 ```sh
 gcloud beta dataproc clusters create \
-    etl-cluster \
-    --image-version=preview \
-    --properties=yarn:yarn.nodemanager.vmem-check-enabled=false,spark:spark.debug.maxToStringFields=1024,spark:spark.master=yarn \
-    --master-machine-type=n1-highmem-64 \
-    --master-boot-disk-size=2000 \
-    --num-secondary-workers=0 \
-    --worker-machine-type=n1-highmem-64 \
-    --num-workers=2 \
-    --worker-boot-disk-size=2000 \
-    --zone=europe-west1-d \
-    --project=open-targets-eu-dev \
-    --region=europe-west1 \
-    --initialization-action-timeout=20m \
-    --max-idle=30m
+       etl-cluster-literature \
+       --image-version=2.0-debian10 \
+       --single-node \
+       --region=europe-west1 \
+       --properties=yarn:yarn.nodemanager.vmem-check-enabled=false,spark:spark.debug.maxToStringFields=1024,spark:spark.master=yarn \
+       --master-machine-type=n1-highmem-64 \
+       --master-boot-disk-size=2000 \
+       --project=open-targets-eu-dev \
+       --initialization-action-timeout=20m \
+       --max-idle=30m 
+
+
 ```
 
 ##### Submitting a job to existing cluster
@@ -151,7 +149,7 @@ And to submit the job with either a local jar or from a GCS Bucket (gs://...)
 
 ```sh
 gcloud dataproc jobs submit spark \
-           --cluster=etl-cluster \
+           --cluster=etl-cluster-literature \
            --project=open-targets-eu-dev \
            --region=europe-west1 \
            --async \
@@ -190,12 +188,12 @@ where the configuration can be found.
 
 ```sh
 gcloud dataproc jobs submit spark \
-           --cluster=etl-cluster \
+          --cluster=etl-cluster-literature \
            --project=open-targets-eu-dev \
            --region=europe-west1 \
            --async \
            --files=application.conf \
-           --properties=spark.executor.extraJavaOptions=-Dconfig.file=job.conf,spark.driver.extraJavaOptions=-Dconfig.file=application.conf \
+           --properties=spark.executor.extraJavaOptions=-Dconfig.file=application.conf,spark.driver.extraJavaOptions=-Dconfig.file=application.conf \
            --jar=gs://ot-snapshots/...
 ```
 where `application.conf` is a subset of `reference.conf`
