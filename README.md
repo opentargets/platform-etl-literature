@@ -52,16 +52,19 @@ The section `outputs` contains path for co-occurance dataset and matches dataset
      format = "json"
      path = "gs://otar-epmc/literature-files/**/*.jsonl"
    }
-   outputs = {
+   raw-evidence {
+     format = ${common.output-format}
+     path = ${common.output}"/rawEvidence"
+    }
     cooccurrences {
-      format = ${common.output-format}
-      path = ${common.output}"/cooccurrences"
+     format = ${common.output-format}
+     path = ${common.output}"/cooccurrences"
     }
     matches {
-      format = ${common.output-format}
-      path = ${common.output}"/matches"
+     format = ${common.output-format}
+     path = ${common.output}"/matches"
     }
-   }
+  }
  }
 ```
 
