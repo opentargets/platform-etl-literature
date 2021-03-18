@@ -16,8 +16,8 @@ object ETL extends LazyLogging {
     step match {
       case "all" =>
         logger.info("run steps Processing + Embedding")
-        val matches = Processing()
-        Embedding(matches)
+        Processing()
+        Embedding()
       case "processing" =>
         logger.info("run step Analysis")
         Processing()

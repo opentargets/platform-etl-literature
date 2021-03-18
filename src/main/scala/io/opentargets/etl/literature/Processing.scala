@@ -27,7 +27,7 @@ object Processing extends Serializable with LazyLogging {
       .filter($"isMapped" === true)
   }
 
-  def apply()(implicit context: ETLSessionContext): DataFrame = {
+  def apply()(implicit context: ETLSessionContext): Map[String, IOResource] = {
     implicit val ss: SparkSession = context.sparkSession
 
     logger.info("Processing step")
@@ -53,7 +53,7 @@ object Processing extends Serializable with LazyLogging {
     )
 
     Helpers.writeTo(dataframesToSave)
-    grounding("matches").filter(col("match.isMapped") === true)
+    dataframesToSave
   }
 
 }

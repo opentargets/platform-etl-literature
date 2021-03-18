@@ -19,29 +19,42 @@ object Embedding extends Serializable with LazyLogging {
 
     logger.info(s"create literature-etl index for ETL")
     df.filter($"section".isNotNull and $"isMapped" === true)
-      .withColumn("keywordId", $"match.keywordId")
       .withColumn("countsPerKey", count($"keywordId").over(wPerKey))
       .withColumn("countsPerTerm", collect_set(struct($"keywordId", $"countsPerKey")).over(wPerPmid))
       .withColumn("terms", collect_set($"keywordId").over(wPerPmid))
+      .withColumn("match",
+        struct(
+          $"endInSentence",
+          $"label",
+          $"sectionEnd",
+          $"sectionStart",
+          $"startInSentence",
+          $"type",
+          $"keywordId",
+          $"isMapped"))
+      .select($"pmid", $"pubDate", $"organisms", $"section", $"text", $"match", $"keywordId")
+      .drop("keywordId")
+      .dropDuplicates("pmid", "section", "match")
       .groupBy($"pmid", $"section")
       .agg(
         first($"pubDate").as("pubDate"), first($"organisms").as("organisms"),
         first($"countsPerTerm").as("countsPerTerm"),
         first($"terms").as("terms"),
-        collect_set($"match").as("matches")
-      )
+        collect_list($"match").as("matches"))
       .groupBy($"pmid")
       .agg(
         first($"pubDate").as("pubDate"),
         first($"organisms").as("organisms"),
         first($"countsPerTerm").as("countsPerTerm"),
         first($"terms").as("terms"),
-        collect_list(struct($"section", $"matches")).as("_sentences")
+        filter(
+          collect_list(
+            struct($"section", $"matches")),
+          x =>
+            x.getField("section")
+              .isInCollection(Seq("title", "abstract"))
+        ).as("sentences")
       )
-      .withColumn(
-        "sentences",
-        filter($"_sentences", x => x.getField("section").isInCollection(Seq("title", "abstract"))))
-      .drop("_sentences")
   }
 
   private def makeWord2VecModel(
@@ -123,40 +136,35 @@ object Embedding extends Serializable with LazyLogging {
   }
 
   def compute(matches: DataFrame, configuration: Configuration.OTConfig)(
-      implicit sparkSession: SparkSession) = {
-    import sparkSession.implicits._
+      implicit sparkSession: SparkSession): Map[String, IOResource] = {
+    val outputs = configuration.embedding.outputs
 
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
     logger.info("Number of partitions: " + configuration.common.partitions.toString())
 
     val literatureETL = matches.transform(aggregateMatches)
+
+    logger.info(s"write to /literature-etl")
+    val saveLiteratureDF = Map(
+      "literature" -> IOResource(literatureETL, outputs.literature)
+    )
+
+    Helpers.writeTo(saveLiteratureDF)
     val matchesModels =
       generateWord2VecModel(literatureETL.select("terms"), configuration.common.partitions)
     val matchesSynonyms =
       generateSynonyms(matchesModels, configuration.embedding.numSynonyms)
-
-    val outputs = configuration.embedding.outputs
 
     // The matchesModel is a W2VModel and the output is parquet.
     matchesModels.save(outputs.wordvec.path)
 
     logger.info(s"write to /literature-etl")
     val dataframesToSave = Map(
-      "literature" -> IOResource(literatureETL, outputs.literature),
       "word2vecSynonym" -> IOResource(matchesSynonyms, outputs.wordvecsyn)
     )
-
     Helpers.writeTo(dataframesToSave)
-  }
 
-  def apply(matches: DataFrame)(implicit context: ETLSessionContext): Unit = {
-    implicit val ss: SparkSession = context.sparkSession
-    import ss.implicits._
-
-    logger.info("Embedding step using Matches Dataframe")
-    val configuration = context.configuration
-    compute(matches, configuration)
-
+    dataframesToSave ++ saveLiteratureDF
   }
 
   def apply()(implicit context: ETLSessionContext): Unit = {
@@ -167,12 +175,9 @@ object Embedding extends Serializable with LazyLogging {
     val configuration = context.configuration
 
     val mappedInputs = Map(
-      // output of Analysis step. Matches data
       "matches" -> configuration.embedding.matches
     )
     val inputDataFrames = Helpers.readFrom(mappedInputs)
-
     compute(inputDataFrames("matches").data, configuration)
-
   }
 }
