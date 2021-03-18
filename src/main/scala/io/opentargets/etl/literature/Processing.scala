@@ -33,16 +33,17 @@ object Processing extends Serializable with LazyLogging {
   private def aggregateMatches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
-    val wPerKey = Window.partitionBy($"pmid", $"keywordId")
-    val wPerPmid = Window.partitionBy($"pmid")
-
     val countsPerKey = df.filter($"section".isNotNull and $"isMapped" === true)
       .select($"pmid", $"keywordId")
-      .withColumn("countsPerKey", count($"keywordId").over(wPerKey))
-      .withColumn("countsPerTerm", collect_set(struct($"keywordId", $"countsPerKey")).over(wPerPmid))
-      .withColumn("terms", collect_set($"keywordId").over(wPerPmid))
-      .drop("countsPerKey", "keywordId")
-      .dropDuplicates("pmid")
+      .groupBy($"pmid", $"keywordId")
+      .agg(
+        count($"keywordId").as("countsPerKey")
+      )
+      .groupBy($"pmid")
+      .agg(
+        collect_set(struct($"keywordId", $"countsPerKey")).as("countsPerTerm"),
+        collect_set($"keywordId").as("terms")
+      )
 
     logger.info(s"create literature-etl index for ETL")
     val aggregated = df.filter($"section".isNotNull and
