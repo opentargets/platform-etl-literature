@@ -96,7 +96,7 @@ object Processing extends Serializable with LazyLogging {
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
-      "rawEvidences" -> IOResource(rawEvidences, outputs.rawEvidence),
+      // "rawEvidences" -> IOResource(rawEvidences, outputs.rawEvidence),
       "cooccurrences" -> IOResource(coocs, outputs.cooccurrences),
       "matches" -> IOResource(matches, outputs.matches),
       "literatureIndex" -> IOResource(literatureIndex, outputs.literatureIndex)
