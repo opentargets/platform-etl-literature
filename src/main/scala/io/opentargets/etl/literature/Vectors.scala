@@ -11,7 +11,7 @@ import org.apache.spark.sql.{SparkSession, _}
 import org.apache.spark.sql.functions._
 
 object Vectors extends Serializable with LazyLogging {
-  val columns = List("category", "word", "norm", "norm2", "vector")
+  val columns = List("category", "word", "norm", "vector")
 
   private def loadVectorsFromModel(path: String): DataFrame = {
     logger.info("load vectors from model")
