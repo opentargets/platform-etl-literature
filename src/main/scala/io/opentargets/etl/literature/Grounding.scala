@@ -31,7 +31,6 @@ object Grounding extends Serializable with LazyLogging {
                     $"sectionStart",
                     $"startInSentence",
                     $"type",
-                    $"labelN",
                     $"keywordId",
                     $"isMapped"
                   ))
@@ -151,6 +150,7 @@ object Grounding extends Serializable with LazyLogging {
       .selectExpr("*", "sentence.*")
       .drop("sentence")
       .withColumn("section", lower($"section"))
+      .filter($"section".isNotNull)
 
   }
 

@@ -18,7 +18,8 @@ object Configuration extends LazyLogging {
 
   case class ProcessingOutput(rawEvidence: IOResourceConfig,
                               cooccurrences: IOResourceConfig,
-                              matches: IOResourceConfig)
+                              matches: IOResourceConfig,
+                              literatureIndex: IOResourceConfig)
 
   case class ProcessingSection(
       otLuts: IOResourceConfig,
@@ -26,21 +27,22 @@ object Configuration extends LazyLogging {
       outputs: ProcessingOutput
   )
 
-  case class EmbeddingOutput(wordvec: IOResourceConfig,
-                             wordvecsyn: IOResourceConfig,
-                             literature: IOResourceConfig)
+  case class EmbeddingOutput(wordvec: IOResourceConfig, wordvecsyn: IOResourceConfig)
 
   case class EmbeddingSection(
       numSynonyms: Int,
-      matches: IOResourceConfig,
+      input: IOResourceConfig,
       outputs: EmbeddingOutput
   )
+
+  case class VectorsSection(input: String, output: IOResourceConfig)
 
   case class OTConfig(
       sparkUri: Option[String],
       common: Common,
       processing: ProcessingSection,
-      embedding: EmbeddingSection
+      embedding: EmbeddingSection,
+      vectors: VectorsSection
   )
 
   def load: ConfigReader.Result[OTConfig] = {

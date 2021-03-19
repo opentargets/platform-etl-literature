@@ -15,15 +15,19 @@ object ETL extends LazyLogging {
   def applySingleStep(step: String)(implicit context: ETLSessionContext): Unit = {
     step match {
       case "all" =>
-        logger.info("run steps Processing + Embedding")
-        val matches = Processing()
-        Embedding(matches)
+        logger.info("run all steps")
+        Processing()
+        Embedding()
+        Vectors()
       case "processing" =>
         logger.info("run step Analysis")
         Processing()
       case "embedding" =>
         logger.info("run step Embedding")
         Embedding()
+      case "vectors" =>
+        logger.info("run step Vectors")
+        Vectors()
       case _ => logger.warn(s"step $step is unknown so nothing to execute")
     }
     logger.info(s"finished to run step ($step)")
