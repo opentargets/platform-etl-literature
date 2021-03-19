@@ -12,8 +12,6 @@ import org.apache.spark.storage.StorageLevel
 
 object Embedding extends Serializable with LazyLogging {
 
-
-
   private def makeWord2VecModel(
       df: DataFrame,
       numPartitions: Int,
@@ -115,7 +113,6 @@ object Embedding extends Serializable with LazyLogging {
 
   def apply()(implicit context: ETLSessionContext): Unit = {
     implicit val ss: SparkSession = context.sparkSession
-    import ss.implicits._
 
     logger.info("Embedding step reading the files matches")
     val configuration = context.configuration
