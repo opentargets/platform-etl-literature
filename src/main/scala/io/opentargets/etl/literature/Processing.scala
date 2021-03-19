@@ -33,45 +33,48 @@ object Processing extends Serializable with LazyLogging {
   private def aggregateMatches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
-    val countsPerKey = df.filter($"section".isNotNull and $"isMapped" === true)
-      .select($"pmid", $"keywordId")
+    val countsPerKey = df
+      .filter($"section".isNotNull and $"isMapped" === true)
+      .select($"pmid", $"keywordId", $"pubDate", $"organisms")
       .groupBy($"pmid", $"keywordId")
       .agg(
+        first($"pubDate").as("pubDate"),
+        first($"organisms").as("organisms"),
         count($"keywordId").as("countsPerKey")
       )
       .groupBy($"pmid")
       .agg(
+        first($"pubDate").as("pubDate"),
+        first($"organisms").as("organisms"),
         collect_set(struct($"keywordId", $"countsPerKey")).as("countsPerTerm"),
         collect_set($"keywordId").as("terms")
       )
 
     logger.info(s"create literature-etl index for ETL")
-    val aggregated = df.filter($"section".isNotNull and
-      $"isMapped" === true and
-      $"section".isInCollection(Seq("title", "abstract"))
-    ).withColumn("match",
-      struct(
-        $"endInSentence",
-        $"label",
-        $"sectionEnd",
-        $"sectionStart",
-        $"startInSentence",
-        $"type",
-        $"keywordId",
-        $"isMapped"))
+    val aggregated = df
+      .filter(
+        $"section".isNotNull and
+          $"isMapped" === true and
+          $"section".isInCollection(Seq("title", "abstract")))
+      .withColumn("match",
+                  struct($"endInSentence",
+                         $"label",
+                         $"sectionEnd",
+                         $"sectionStart",
+                         $"startInSentence",
+                         $"type",
+                         $"keywordId",
+                         $"isMapped"))
       .groupBy($"pmid", $"section")
       .agg(
-        first($"pubDate").as("pubDate"), first($"organisms").as("organisms"),
-        array_distinct(collect_list($"match")).as("matches"))
+        array_distinct(collect_list($"match")).as("matches")
+      )
       .groupBy($"pmid")
       .agg(
-        first($"pubDate").as("pubDate"),
-        first($"organisms").as("organisms"),
-        collect_list(
-          struct($"section", $"matches")).as("sentences")
-      ).join(countsPerKey, Seq("pmid"), "left_outer")
+        collect_list(struct($"section", $"matches")).as("sentences")
+      )
 
-    aggregated
+    countsPerKey.join(aggregated, Seq("pmid"), "left_outer")
   }
 
   def apply()(implicit context: ETLSessionContext): Map[String, IOResource] = {
