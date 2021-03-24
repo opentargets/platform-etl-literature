@@ -8,11 +8,15 @@ script:
   - sbt ++$TRAVIS_SCALA_VERSION clean compile
   - sbt ++$TRAVIS_SCALA_VERSION coverage test coverageReport
   - sbt ++$TRAVIS_SCALA_VERSION assembly
+before_deploy:
+  # Set up git user name and tag this commit
+  - git config --local user.name "opentargets-admin"
+  - git config --local user.email "administrator@opentargets.org"
 deploy:
   provider: releases
   api_key:
-    secure: jQZRStwXP4AFCCrqxkD1EGJyOgawJo48b67kMqMNseARVKnMrZ3QZ09amQ5GOPPZBU8+h2UzZHN3h2k8x8sXbCVYsDvrwE9F08pQ0Z46WR3INTOcWAR8Vr2Kxg1JCj552vePr9aLqzyq+0KT9pMG9tU1zhT3lD/DiakU9LAi1kcSXaQKIJ4spxVeWWpY6z9wmTCNmizq8D8n64/qn2hkp0j493Sm4TY+IysZaaQ6jzMDWQjMDu2sSF72vnztrLPYdrrA/nCooWcQYMEot1fr8rDJ5VjUfuTUEimH8p6Ue3XMx/jBfnCFwxuKuEbqBpiLROI9ligpJBiIIeiaIgnPIXFtYriKpOKRGVfxmvtI+p1LYeWI3GN4a37WDwh+8kyzLyGmnsECgENUjJKzazSOd3tr8rbCfhQhyBbsUz8EIjdY8sMMI/O5KWUznd4mXrXv0K9fNmeQ7K/W1ZpD7JmNbfkUINHwwCGc6KdrMPcdo5fyWskprQTdCOK5ZXQCvQNSuzl0trHk1365hIvtGvOxbfxNJ0edN1GdjTbzrntYLNeNdcvehA7U3X+iG2xcxebxYECaIpOjt75mz2oQFWzWKYQoo9/7sZ+IfscJ/t3yelfagnfTKjjreTz4RVaBzJpZwDo/g7DHXQyu0Fazl8Y7Y70rYhawbDkLVZ7PNBXz4RE=
-  file_glob: true
+    secure: $GITHUB_TOKEN
+    file_glob: true
   file:
     - "target/scala-2.12/io-opentargets-etl-literature-assembly-*"
   on:
