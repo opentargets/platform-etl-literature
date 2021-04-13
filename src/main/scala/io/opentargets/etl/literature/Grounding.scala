@@ -249,7 +249,7 @@ object Grounding extends Serializable with LazyLogging {
 
     val hammerDateField = udf((psuedoDate: String) =>
       psuedoDate.split("/").map(_.toInt).toList match {
-        case day :: month :: year :: Nil =>
+        case day :: month :: year :: Nil if year > 1600 =>
           Some(f"$year%04d-$month%02d-$day%02d")
         case _ => None
     })
@@ -266,7 +266,7 @@ object Grounding extends Serializable with LazyLogging {
       .drop("sentence")
       .withColumn("section", lower($"section"))
       .filter($"section".isNotNull)
-      .withColumn("date", when($"pubDate" =!= "", to_date(hammerDateField($"pubDate"))))
+      .withColumn("date", when($"pubDate" =!= "", hammerDateField($"pubDate").cast(DateType)))
       .withColumn("year", when($"date".isNotNull, year($"date")))
       .withColumn("month", when($"date".isNotNull, month($"date")))
       .withColumn("day", when($"date".isNotNull, dayofmonth($"date")))
