@@ -22,7 +22,10 @@ object Configuration extends LazyLogging {
                               literatureIndex: IOResourceConfig)
 
   case class ProcessingSection(
-      otLuts: IOResourceConfig,
+      epmcids: IOResourceConfig,
+      diseases: IOResourceConfig,
+      targets: IOResourceConfig,
+      drugs: IOResourceConfig,
       epmc: IOResourceConfig,
       outputs: ProcessingOutput
   )

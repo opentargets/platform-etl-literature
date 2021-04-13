@@ -14,7 +14,7 @@ object Dependencies {
 
   lazy val loggingDeps = Seq(
     "ch.qos.logback" % "logback-classic" % "1.2.3",
-    "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.9.3"
   )
 
   lazy val sparkVersion = "3.1.1"
@@ -36,4 +36,8 @@ object Dependencies {
 
   lazy val typeSafeConfig = "com.typesafe" % "config" % "1.4.1"
 
+  lazy val johnSVersion = "3.0.1"
+  lazy val johnS = Seq(
+    "com.johnsnowlabs.nlp" % "spark-nlp_2.12" % johnSVersion
+  )
 }

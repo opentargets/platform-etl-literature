@@ -35,6 +35,7 @@ object Processing extends Serializable with LazyLogging {
 
     val countsPerKey = df
       .filter($"section".isNotNull and $"isMapped" === true)
+      .withColumn("pubDate", $"date")
       .select($"pmid", $"keywordId", $"pubDate", $"organisms")
       .groupBy($"pmid", $"keywordId")
       .agg(
@@ -85,7 +86,7 @@ object Processing extends Serializable with LazyLogging {
     val empcConfiguration = context.configuration.processing
     val grounding = Grounding.compute(empcConfiguration)
 
-    val rawEvidences = foldCooccurrences(grounding("cooccurrences"))
+//    val rawEvidences = foldCooccurrences(grounding("cooccurrences"))
     logger.info("Processing raw evidences")
 
     val coocs = filterCooccurrences(grounding("cooccurrences"))

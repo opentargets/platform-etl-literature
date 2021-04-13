@@ -3,7 +3,8 @@ import Dependencies._
 val buildResolvers = Seq(
   "Typesafe Repo" at "https://repo.typesafe.com/typesafe/releases/",
   "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
-  "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases"
+  "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases",
+  "Bintray Repo" at "https://dl.bintray.com/spark-packages/maven/"
 )
 
 lazy val root = (project in file("."))
@@ -15,16 +16,15 @@ lazy val root = (project in file("."))
       )
     ),
     name := "io-opentargets-etl-literature",
-    version := "0.7",
+    version := "1.0",
     resolvers ++= buildResolvers,
-    libraryDependencies ++= sparkDeps,
-    libraryDependencies ++= aoyi,
-    libraryDependencies += betterFiles,
-    libraryDependencies ++= configDeps,
     libraryDependencies ++= loggingDeps,
+    libraryDependencies ++= sparkDeps,
+    libraryDependencies ++= configDeps,
     libraryDependencies += scalaCheck,
     libraryDependencies ++= testingDeps,
     libraryDependencies += typeSafeConfig,
+    libraryDependencies ++= johnS,
     assemblyMergeStrategy in assembly := {
       case PathList("META-INF", "services", "org.apache.hadoop.fs.FileSystem") =>
         MergeStrategy.filterDistinctLines

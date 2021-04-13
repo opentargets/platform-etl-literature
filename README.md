@@ -37,35 +37,59 @@ The result is faster than runs the two steps separately.
 ### Processing step
 The processing step extracts a common ground from EPMC entities and  the three main entities of Opentarget (Disease, Target, Drug). 
 
-The input section needs two datasets. The `ot-luts` section contains the LookUp Table with the Opentarget info.
-The dataset used for this specific project is the "search" step of [ETL project](https://github.com/opentargets/platform-etl-backend).
+This step needs the datasets from the 3 main entities produced by the main piepline [ETL project](https://github.com/opentargets/platform-etl-backend).
 The `epmc` section contains the EPMC literature dataset.
+The section `epmcids` contains an index to resolve the pmid given a pmcid.
 The section `outputs` contains path for co-occurance dataset and matches dataset.
 
 ```
-  processing {
-   ot-luts {
-     format = "json"
-     path = "gs://open-targets-data-releases/21.02/output/ETL/search/**/*.json"
-   }
-   epmc {
-     format = "json"
-     path = "gs://otar-epmc/literature-files/**/*.jsonl"
-   }
-   raw-evidence {
-     format = ${common.output-format}
-     path = ${common.output}"/rawEvidence"
+# this is a temporal lut for pmcid to pmid
+# http://ftp.ebi.ac.uk/pub/databases/pmc/DOI/PMID_PMCID_DOI.csv.gz
+processing {
+  epmcids {
+    format = "csv"
+    path = "gs://ot-snapshots/otar025-epmc/PMID_PMCID_DOI.csv.gz"
+    options = [
+      {k: "header", v: "true"}
+      {k: "inferSchema", v: "true"}
+    ]
+  }
+  diseases {
+    format = "parquet"
+    path = "gs://ot-snapshots/otar025-epmc/diseases"
+  }
+
+  targets {
+    format = "parquet"
+    path = "gs://ot-snapshots/otar025-epmc/targets"
+  }
+  drugs {
+    format = "parquet"
+    path = "gs://ot-snapshots/otar025-epmc/molecule"
+  }
+  epmc {
+    format = "json"
+    path = "gs://ot-snapshots/otar025-epmc/20210408/"
+  }
+  outputs = {
+    raw-evidence {
+      format = ${common.output-format}
+      path = ${common.output}"/rawEvidence"
     }
     cooccurrences {
-     format = ${common.output-format}
-     path = ${common.output}"/cooccurrences"
+      format = ${common.output-format}
+      path = ${common.output}"/cooccurrences"
     }
     matches {
      format = ${common.output-format}
      path = ${common.output}"/matches"
     }
+    literature-index {
+      format = "json"
+      path = ${common.output}"/literatureIndex"
+    }
   }
- }
+}
 ```
 
 
