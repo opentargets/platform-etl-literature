@@ -120,7 +120,8 @@ object Grounding extends Serializable with LazyLogging {
       $"day",
       $"organisms",
       $"section",
-      $"text"
+      $"text",
+      $"trace_source"
     )
 
     val mergedMatches = entities
@@ -138,17 +139,20 @@ object Grounding extends Serializable with LazyLogging {
       .withColumnRenamed("_text", "text")
       .join(luts, Seq("type", "labelN"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
-      .withColumn("match",
-                  struct(
-                    $"endInSentence",
-                    $"label",
-                    $"sectionEnd",
-                    $"sectionStart",
-                    $"startInSentence",
-                    $"type",
-                    $"keywordId",
-                    $"isMapped"
-                  ))
+      .withColumn(
+        "match",
+        struct(
+          $"endInSentence",
+          $"label",
+          $"nerTerms_stem".as("trace_labelStem"),
+          $"sectionEnd",
+          $"sectionStart",
+          $"startInSentence",
+          $"type",
+          $"keywordId",
+          $"isMapped"
+        )
+      )
       .select(baseCols :+ $"match": _*)
 
     val mergedCooc = entities
@@ -188,8 +192,10 @@ object Grounding extends Serializable with LazyLogging {
           $"end2",
           $"sent_evidence_score".as("evidence_score"),
           $"label1",
+          $"nerTerms1_stem".as("trace_label1Stem"),
           $"keywordId1",
           $"label2",
+          $"nerTerms2_stem".as("trace_label2Stem"),
           $"keywordId2",
           $"relation",
           $"start1",
@@ -244,7 +250,8 @@ object Grounding extends Serializable with LazyLogging {
       .filter($"sentences".isNotNull and size($"sentences") > 0)
   }
 
-  def loadEntities(df: DataFrame, epmcids: DataFrame)(implicit sparkSession: SparkSession) = {
+  def loadEntities(df: DataFrame, epmcids: DataFrame)(
+      implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
     val hammerDateField = udf((psuedoDate: String) =>
@@ -254,7 +261,8 @@ object Grounding extends Serializable with LazyLogging {
         case _ => None
     })
 
-    df.withColumn("sentence", explode($"sentences"))
+    df.withColumn("trace_source", input_file_name())
+      .withColumn("sentence", explode($"sentences"))
       .drop("sentences")
       .withColumn("pmid", when($"pmid" =!= "", $"pmid"))
       .withColumn("pmcid", when($"pmcid" =!= "", $"pmcid"))

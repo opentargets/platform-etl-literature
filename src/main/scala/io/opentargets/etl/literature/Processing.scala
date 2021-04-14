@@ -14,20 +14,31 @@ import org.apache.spark.storage.StorageLevel
 
 object Processing extends Serializable with LazyLogging {
 
-  private def filterCooccurrences(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
+  private def filterCooccurrences(df: DataFrame, isMapped: Boolean)(
+      implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
+    val droppedCols = "co-occurrence" +: (if (isMapped)
+                                            df.columns.filter(_.startsWith("trace_")).toList
+                                          else List.empty)
+
     df.selectExpr("*", "`co-occurrence`.*")
-      .drop("co-occurrence")
-      .filter($"isMapped" === true)
+      .drop(droppedCols: _*)
+      .filter($"isMapped" === isMapped)
 
   }
 
-  private def filterMatches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
+  private def filterMatches(df: DataFrame, isMapped: Boolean)(
+      implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
+
+    val droppedCols = "match" +: (if (isMapped)
+                                    df.columns.filter(_.startsWith("trace_")).toList
+                                  else List.empty)
+
     df.selectExpr("*", "match.*")
-      .drop("match")
-      .filter($"isMapped" === true)
+      .drop(droppedCols: _*)
+      .filter($"isMapped" === isMapped)
   }
 
   private def aggregateMatches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
@@ -89,10 +100,12 @@ object Processing extends Serializable with LazyLogging {
 //    val rawEvidences = foldCooccurrences(grounding("cooccurrences"))
     logger.info("Processing raw evidences")
 
-    val coocs = filterCooccurrences(grounding("cooccurrences"))
+    val failedMatches = filterMatches(grounding("matches"), isMapped = false)
+
+    val coocs = filterCooccurrences(grounding("cooccurrences"), isMapped = true)
     logger.info("Processing coOccurences calculate done")
 
-    val matches = filterMatches(grounding("matches"))
+    val matches = filterMatches(grounding("matches"), isMapped = true)
     logger.info("Processing matches calculate done")
 
     val literatureIndex = matches.transform(aggregateMatches)
@@ -101,6 +114,9 @@ object Processing extends Serializable with LazyLogging {
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
       // "rawEvidences" -> IOResource(rawEvidences, outputs.rawEvidence),
+      "failedMatches" -> IOResource(
+        failedMatches,
+        outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),
       "cooccurrences" -> IOResource(coocs, outputs.cooccurrences),
       "matches" -> IOResource(matches, outputs.matches),
       "literatureIndex" -> IOResource(literatureIndex, outputs.literatureIndex)
