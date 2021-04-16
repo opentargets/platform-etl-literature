@@ -101,12 +101,13 @@ object Processing extends Serializable with LazyLogging {
     logger.info("Processing raw evidences")
 
     val failedMatches = filterMatches(grounding("matches"), isMapped = false)
+    val failedCoocs = filterCooccurrences(grounding("cooccurrences"), isMapped = false)
 
-    val coocs = filterCooccurrences(grounding("cooccurrences"), isMapped = true)
-    logger.info("Processing coOccurences calculate done")
-
-    val matches = filterMatches(grounding("matches"), isMapped = true)
     logger.info("Processing matches calculate done")
+    val matches = filterMatches(grounding("matches"), isMapped = true)
+
+    logger.info("Processing coOccurences calculate done")
+    val coocs = filterCooccurrences(grounding("cooccurrences"), isMapped = true)
 
     val literatureIndex = matches.transform(aggregateMatches)
 
@@ -117,6 +118,9 @@ object Processing extends Serializable with LazyLogging {
       "failedMatches" -> IOResource(
         failedMatches,
         outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),
+      "failedCoocs" -> IOResource(
+        failedCoocs,
+        outputs.matches.copy(path = context.configuration.common.output + "/failedCooccurrences")),
       "cooccurrences" -> IOResource(coocs, outputs.cooccurrences),
       "matches" -> IOResource(matches, outputs.matches),
       "literatureIndex" -> IOResource(literatureIndex, outputs.literatureIndex)
