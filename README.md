@@ -156,18 +156,15 @@ It is warmly reccomended to use n1-highmem-64 (64cpu and 416GB RAM). It is impor
 
 ```sh
 gcloud beta dataproc clusters create \
-       etl-cluster-literature \
-       --image-version=2.0-debian10 \
-       --single-node \
-       --region=europe-west1 \
-       --properties=yarn:yarn.nodemanager.vmem-check-enabled=false,spark:spark.debug.maxToStringFields=1024,spark:spark.master=yarn \
-       --master-machine-type=n1-highmem-64 \
-       --master-boot-disk-size=2000 \
-       --project=open-targets-eu-dev \
-       --initialization-action-timeout=20m \
-       --max-idle=30m 
-
-
+    etl-cluster-literature-96 \
+    --image-version=2.0-debian10 \
+    --single-node \
+    --region=europe-west1 \
+    --master-machine-type=n1-highmem-96 \
+    --master-boot-disk-size=2000 \
+    --project=open-targets-eu-dev \
+    --initialization-action-timeout=20m \
+    --max-idle=30m
 ```
 
 ##### Submitting a job to existing cluster
@@ -176,11 +173,15 @@ And to submit the job with either a local jar or from a GCS Bucket (gs://...)
 
 ```sh
 gcloud dataproc jobs submit spark \
-           --cluster=etl-cluster-literature \
-           --project=open-targets-eu-dev \
-           --region=europe-west1 \
-           --async \
-           --jar=gs://ot-snapshots/...
+    --cluster=etl-cluster-literature-96 \
+    --project=open-targets-eu-dev \
+    --region=europe-west1 \
+    --async \
+    --files=gs://.../application-embedding.conf \
+    --properties=spark.executor.extraJavaOptions=-Dconfig.file=application-embedding.conf,spark.driver.extraJavaOptions=-Dconfig.file=application-embedding.conf \
+    --jar=gs://.../io-opentargets-etl-literature-assembly-1.4.jar
+
+
 ```
 
 #### Load with custom configuration
