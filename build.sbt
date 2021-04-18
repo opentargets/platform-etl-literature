@@ -16,7 +16,7 @@ lazy val root = (project in file("."))
       )
     ),
     name := "io-opentargets-etl-literature",
-    version := "1.3",
+    version := "1.4",
     resolvers ++= buildResolvers,
     libraryDependencies ++= loggingDeps,
     libraryDependencies ++= sparkDeps,
@@ -25,12 +25,12 @@ lazy val root = (project in file("."))
     libraryDependencies ++= testingDeps,
     libraryDependencies += typeSafeConfig,
     libraryDependencies ++= johnS,
-    assemblyMergeStrategy in assembly := {
+    assembly / assemblyMergeStrategy := {
       case PathList("META-INF", "services", "org.apache.hadoop.fs.FileSystem") =>
         MergeStrategy.filterDistinctLines
       case PathList("META-INF", "services", "org.apache.spark.sql.sources.DataSourceRegister") =>
         MergeStrategy.concat
-      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-      case _                             => MergeStrategy.first
+      case PathList("META-INF", _ @_*) => MergeStrategy.discard
+      case _                           => MergeStrategy.first
     }
   )

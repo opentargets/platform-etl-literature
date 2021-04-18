@@ -153,8 +153,7 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("text", $"_textV".getField("keyValue"))
       .withColumn("keyType", $"_textV".getField("keyType"))
       .transform(normaliseSentence(_, pipeline, "nerTerms", pipelineCols))
-      .transform(generateKeysColumn(_, "nerTerms"))
-      .withColumnRenamed("key", "labelN")
+      .transform(generateKeysColumn(_, "nerTerms", "labelN"))
 
     val scoreCN = "factor"
     val scoreC = col(scoreCN)
@@ -168,7 +167,7 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
       .select("type", "label", "keywordId")
-      .dropDuplicates("type", "label")
+      .distinct()
       .repartition($"type", $"label")
       .orderBy($"type", $"label")
 
@@ -329,7 +328,7 @@ object Grounding extends Serializable with LazyLogging {
     transform(coalesce(c, array()),
               c => struct(c.as("key"), lit(score).as("factor"), lit(keyTypeName).as("keyType")))
 
-  private def generateKeysColumn(df: DataFrame, columnPrefix: String)(
+  private def generateKeysColumn(df: DataFrame, columnPrefix: String, keyColumnName: String)(
       implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
@@ -337,7 +336,7 @@ object Grounding extends Serializable with LazyLogging {
     val tokenColumn = s"${columnPrefix}_$tokenT"
 
     df.withColumn(
-        "key",
+        keyColumnName,
         when($"keyType" === labelT,
              array_join(
                array_sort(filter(array_distinct(col(labelColumn)), c => c.isNotNull and c =!= "")),
@@ -345,7 +344,7 @@ object Grounding extends Serializable with LazyLogging {
           .when($"keyType" === tokenT,
                 array_join(filter(col(tokenColumn), c => c.isNotNull and c =!= ""), ""))
       )
-      .filter($"key".isNotNull and length($"key") > 0)
+      .filter(col(keyColumnName).isNotNull and length(col(keyColumnName)) > 0)
   }
 
   private def transformDiseases(
@@ -380,7 +379,7 @@ object Grounding extends Serializable with LazyLogging {
       .select("keywordId", "text", "factor", "keyType")
       .filter($"text".isNotNull and length($"text") > 0)
       .transform(normaliseSentence(_, pipeline, "efoTerms", pipelineCols))
-      .transform(generateKeysColumn(_, "efoTerms"))
+      .transform(generateKeysColumn(_, "efoTerms", "key"))
   }
 
   private def transformTargets(targets: DataFrame, pipeline: Pipeline, pipelineCols: List[String])(
@@ -419,7 +418,7 @@ object Grounding extends Serializable with LazyLogging {
       .select("keywordId", "text", "factor", "keyType")
       .filter($"text".isNotNull and length($"text") > 0)
       .transform(normaliseSentence(_, pipeline, "targetTerms", pipelineCols))
-      .transform(generateKeysColumn(_, "targetTerms"))
+      .transform(generateKeysColumn(_, "targetTerms", "key"))
   }
 
   private def transformDrugs(drugs: DataFrame, pipeline: Pipeline, pipelineCols: List[String])(
@@ -443,7 +442,7 @@ object Grounding extends Serializable with LazyLogging {
       .select("keywordId", "text", "factor", "keyType")
       .filter($"text".isNotNull and length($"text") > 0)
       .transform(normaliseSentence(_, pipeline, "drugTerms", pipelineCols))
-      .transform(generateKeysColumn(_, "drugTerms"))
+      .transform(generateKeysColumn(_, "drugTerms", "key"))
   }
 
   def loadEntityLUT(

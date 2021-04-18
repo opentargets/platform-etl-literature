@@ -47,9 +47,10 @@ object Processing extends Serializable with LazyLogging {
     val countsPerKey = df
       .filter($"section".isNotNull and $"isMapped" === true)
       .withColumn("pubDate", $"date")
-      .select($"pmid", $"keywordId", $"pubDate", $"organisms")
+      .select($"pmid", $"pmcid", $"keywordId", $"pubDate", $"organisms")
       .groupBy($"pmid", $"keywordId")
       .agg(
+        first($"pmcid").as("pmcid"),
         first($"pubDate").as("pubDate"),
         first($"organisms").as("organisms"),
         count($"keywordId").as("countsPerKey")
