@@ -110,6 +110,31 @@ by the "all" step the matches dataset <br>
 The dataset literature-etl contains the data that are loaded into the Elasticsearch ETL data pipeline.
 The dataset word2vec
 
+```
+embedding {
+  num-synonyms = 50
+  input = ${processing.outputs.literature-index}
+  outputs = {
+    wordvec {
+     format = ${common.output-format}
+     path = ${common.output}"/W2VModel"
+    }
+    wordvecsyn {
+     format = ${common.output-format}
+     path = ${common.output}"/W2VSynonyms"
+    }
+  }
+}
+
+vectors {
+  input = ${embedding.outputs.wordvec.path}
+  output {
+    format = "json"
+    path = ${common.output}"/vectors"
+  }
+}
+```
+
 ### Create a fat JAR
 
 Simply run the following command:
@@ -227,9 +252,12 @@ gcloud dataproc jobs submit spark \
 where `application.conf` is a subset of `reference.conf`
 
 ```hocon
-common {
-  output = "gs://ot-snapshots/etl-literature/prod-latest"
-}
+include "reference.conf"
+
+spark-uri = null
+common.output = "gs://.../20210418"
+common.partitions = 32
+sparknlp.settings.overrideConfigPath = "sparknlp.conf"
 ```
 
 #### Spark-submit
