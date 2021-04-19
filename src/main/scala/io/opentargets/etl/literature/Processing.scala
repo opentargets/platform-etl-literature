@@ -57,6 +57,7 @@ object Processing extends Serializable with LazyLogging {
       )
       .groupBy($"pmid")
       .agg(
+        first($"pmcid").as("pmcid"),
         first($"pubDate").as("pubDate"),
         first($"organisms").as("organisms"),
         collect_set(struct($"keywordId", $"countsPerKey")).as("countsPerTerm"),
