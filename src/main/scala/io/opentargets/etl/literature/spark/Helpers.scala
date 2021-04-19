@@ -49,14 +49,9 @@ object Helpers extends LazyLogging {
       .getOrCreate
   }
 
-  /** It normalises data from a specific match String cases. */
   def normalise(c: Column): Column = {
     // https://www.rapidtables.com/math/symbols/greek_alphabet.html
-    translate(
-      rtrim(lower(translate(trim(trim(c), "."), "/`''[]{}()- ", "")), "s"),
-      "αβγδεζηικλμνξπτυω",
-      "abgdezhiklmnxptuo"
-    )
+    translate(c, "αβγδεζηικλμνξπτυω", "abgdezhiklmnxptuo")
   }
 
   def harmonicFn(c: Column): Column =

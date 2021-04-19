@@ -37,35 +37,59 @@ The result is faster than runs the two steps separately.
 ### Processing step
 The processing step extracts a common ground from EPMC entities and  the three main entities of Opentarget (Disease, Target, Drug). 
 
-The input section needs two datasets. The `ot-luts` section contains the LookUp Table with the Opentarget info.
-The dataset used for this specific project is the "search" step of [ETL project](https://github.com/opentargets/platform-etl-backend).
+This step needs the datasets from the 3 main entities produced by the main piepline [ETL project](https://github.com/opentargets/platform-etl-backend).
 The `epmc` section contains the EPMC literature dataset.
+The section `epmcids` contains an index to resolve the pmid given a pmcid.
 The section `outputs` contains path for co-occurance dataset and matches dataset.
 
 ```
-  processing {
-   ot-luts {
-     format = "json"
-     path = "gs://open-targets-data-releases/21.02/output/ETL/search/**/*.json"
-   }
-   epmc {
-     format = "json"
-     path = "gs://otar-epmc/literature-files/**/*.jsonl"
-   }
-   raw-evidence {
-     format = ${common.output-format}
-     path = ${common.output}"/rawEvidence"
+# this is a temporal lut for pmcid to pmid
+# http://ftp.ebi.ac.uk/pub/databases/pmc/DOI/PMID_PMCID_DOI.csv.gz
+processing {
+  epmcids {
+    format = "csv"
+    path = "gs://ot-snapshots/otar025-epmc/PMID_PMCID_DOI.csv.gz"
+    options = [
+      {k: "header", v: "true"}
+      {k: "inferSchema", v: "true"}
+    ]
+  }
+  diseases {
+    format = "parquet"
+    path = "gs://ot-snapshots/otar025-epmc/diseases"
+  }
+
+  targets {
+    format = "parquet"
+    path = "gs://ot-snapshots/otar025-epmc/targets"
+  }
+  drugs {
+    format = "parquet"
+    path = "gs://ot-snapshots/otar025-epmc/molecule"
+  }
+  epmc {
+    format = "json"
+    path = "gs://ot-snapshots/otar025-epmc/20210408/"
+  }
+  outputs = {
+    raw-evidence {
+      format = ${common.output-format}
+      path = ${common.output}"/rawEvidence"
     }
     cooccurrences {
-     format = ${common.output-format}
-     path = ${common.output}"/cooccurrences"
+      format = ${common.output-format}
+      path = ${common.output}"/cooccurrences"
     }
     matches {
      format = ${common.output-format}
      path = ${common.output}"/matches"
     }
+    literature-index {
+      format = "json"
+      path = ${common.output}"/literatureIndex"
+    }
   }
- }
+}
 ```
 
 
@@ -85,6 +109,31 @@ The input section requires the matches dataset generates by the "processing" ste
 by the "all" step the matches dataset <br>
 The dataset literature-etl contains the data that are loaded into the Elasticsearch ETL data pipeline.
 The dataset word2vec
+
+```
+embedding {
+  num-synonyms = 50
+  input = ${processing.outputs.literature-index}
+  outputs = {
+    wordvec {
+     format = ${common.output-format}
+     path = ${common.output}"/W2VModel"
+    }
+    wordvecsyn {
+     format = ${common.output-format}
+     path = ${common.output}"/W2VSynonyms"
+    }
+  }
+}
+
+vectors {
+  input = ${embedding.outputs.wordvec.path}
+  output {
+    format = "json"
+    path = ${common.output}"/vectors"
+  }
+}
+```
 
 ### Create a fat JAR
 
@@ -132,18 +181,15 @@ It is warmly reccomended to use n1-highmem-64 (64cpu and 416GB RAM). It is impor
 
 ```sh
 gcloud beta dataproc clusters create \
-       etl-cluster-literature \
-       --image-version=2.0-debian10 \
-       --single-node \
-       --region=europe-west1 \
-       --properties=yarn:yarn.nodemanager.vmem-check-enabled=false,spark:spark.debug.maxToStringFields=1024,spark:spark.master=yarn \
-       --master-machine-type=n1-highmem-64 \
-       --master-boot-disk-size=2000 \
-       --project=open-targets-eu-dev \
-       --initialization-action-timeout=20m \
-       --max-idle=30m 
-
-
+    etl-cluster-literature-96 \
+    --image-version=2.0-debian10 \
+    --single-node \
+    --region=europe-west1 \
+    --master-machine-type=n1-highmem-96 \
+    --master-boot-disk-size=2000 \
+    --project=open-targets-eu-dev \
+    --initialization-action-timeout=20m \
+    --max-idle=30m
 ```
 
 ##### Submitting a job to existing cluster
@@ -152,11 +198,15 @@ And to submit the job with either a local jar or from a GCS Bucket (gs://...)
 
 ```sh
 gcloud dataproc jobs submit spark \
-           --cluster=etl-cluster-literature \
-           --project=open-targets-eu-dev \
-           --region=europe-west1 \
-           --async \
-           --jar=gs://ot-snapshots/...
+    --cluster=etl-cluster-literature-96 \
+    --project=open-targets-eu-dev \
+    --region=europe-west1 \
+    --async \
+    --files=gs://.../application-embedding.conf \
+    --properties=spark.executor.extraJavaOptions=-Dconfig.file=application-embedding.conf,spark.driver.extraJavaOptions=-Dconfig.file=application-embedding.conf \
+    --jar=gs://.../io-opentargets-etl-literature-assembly-1.4.jar
+
+
 ```
 
 #### Load with custom configuration
@@ -202,9 +252,12 @@ gcloud dataproc jobs submit spark \
 where `application.conf` is a subset of `reference.conf`
 
 ```hocon
-common {
-  output = "gs://ot-snapshots/etl-literature/prod-latest"
-}
+include "reference.conf"
+
+spark-uri = null
+common.output = "gs://.../20210418"
+common.partitions = 32
+sparknlp.settings.overrideConfigPath = "sparknlp.conf"
 ```
 
 #### Spark-submit

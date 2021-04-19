@@ -1,33 +1,39 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
-import io.opentargets.etl.literature.Embedding.logger
-import io.opentargets.etl.literature.Grounding.foldCooccurrences
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.functions.col
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.IOResource
 import org.apache.spark.sql._
-import org.apache.spark.sql.expressions.Window
-import org.apache.spark.storage.StorageLevel
 
 object Processing extends Serializable with LazyLogging {
 
-  private def filterCooccurrences(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
+  private def filterCooccurrences(df: DataFrame, isMapped: Boolean)(
+      implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
+    val droppedCols = "co-occurrence" +: (if (isMapped)
+                                            df.columns.filter(_.startsWith("trace_")).toList
+                                          else List.empty)
+
     df.selectExpr("*", "`co-occurrence`.*")
-      .drop("co-occurrence")
-      .filter($"isMapped" === true)
+      .drop(droppedCols: _*)
+      .filter($"isMapped" === isMapped)
 
   }
 
-  private def filterMatches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
+  private def filterMatches(df: DataFrame, isMapped: Boolean)(
+      implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
+
+    val droppedCols = "match" +: (if (isMapped)
+                                    df.columns.filter(_.startsWith("trace_")).toList
+                                  else List.empty)
+
     df.selectExpr("*", "match.*")
-      .drop("match")
-      .filter($"isMapped" === true)
+      .drop(droppedCols: _*)
+      .filter($"isMapped" === isMapped)
   }
 
   private def aggregateMatches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
@@ -35,15 +41,18 @@ object Processing extends Serializable with LazyLogging {
 
     val countsPerKey = df
       .filter($"section".isNotNull and $"isMapped" === true)
-      .select($"pmid", $"keywordId", $"pubDate", $"organisms")
+      .withColumn("pubDate", $"date")
+      .select($"pmid", $"pmcid", $"keywordId", $"pubDate", $"organisms")
       .groupBy($"pmid", $"keywordId")
       .agg(
+        first($"pmcid").as("pmcid"),
         first($"pubDate").as("pubDate"),
         first($"organisms").as("organisms"),
         count($"keywordId").as("countsPerKey")
       )
       .groupBy($"pmid")
       .agg(
+        first($"pmcid").as("pmcid"),
         first($"pubDate").as("pubDate"),
         first($"organisms").as("organisms"),
         collect_set(struct($"keywordId", $"countsPerKey")).as("countsPerTerm"),
@@ -85,21 +94,28 @@ object Processing extends Serializable with LazyLogging {
     val empcConfiguration = context.configuration.processing
     val grounding = Grounding.compute(empcConfiguration)
 
-    val rawEvidences = foldCooccurrences(grounding("cooccurrences"))
     logger.info("Processing raw evidences")
 
-    val coocs = filterCooccurrences(grounding("cooccurrences"))
-    logger.info("Processing coOccurences calculate done")
+    val failedMatches = filterMatches(grounding("matches"), isMapped = false)
+    val failedCoocs = filterCooccurrences(grounding("cooccurrences"), isMapped = false)
 
-    val matches = filterMatches(grounding("matches"))
     logger.info("Processing matches calculate done")
+    val matches = filterMatches(grounding("matches"), isMapped = true)
+
+    logger.info("Processing coOccurences calculate done")
+    val coocs = filterCooccurrences(grounding("cooccurrences"), isMapped = true)
 
     val literatureIndex = matches.transform(aggregateMatches)
 
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
-      // "rawEvidences" -> IOResource(rawEvidences, outputs.rawEvidence),
+      "failedMatches" -> IOResource(
+        failedMatches,
+        outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),
+      "failedCoocs" -> IOResource(
+        failedCoocs,
+        outputs.matches.copy(path = context.configuration.common.output + "/failedCooccurrences")),
       "cooccurrences" -> IOResource(coocs, outputs.cooccurrences),
       "matches" -> IOResource(matches, outputs.matches),
       "literatureIndex" -> IOResource(literatureIndex, outputs.literatureIndex)

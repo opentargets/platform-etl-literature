@@ -6,7 +6,7 @@ import io.opentargets.etl.literature._
 object Main {
 
   def main(args: Array[String]): Unit = {
-    ETL(args)
+    ETL(args.toSeq)
   }
 }
 
