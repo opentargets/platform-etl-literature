@@ -7,8 +7,6 @@ import org.apache.spark.sql._
 import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.IOResource
-import org.apache.spark.sql.expressions.Window
-import org.apache.spark.storage.StorageLevel
 
 object Embedding extends Serializable with LazyLogging {
 

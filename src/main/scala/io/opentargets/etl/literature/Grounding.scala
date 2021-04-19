@@ -8,14 +8,8 @@ import org.apache.spark.ml.Pipeline
 import org.apache.spark.sql._
 import com.johnsnowlabs.nlp.{DocumentAssembler, Finisher, SparkNLP}
 import com.johnsnowlabs.nlp.annotator._
-import io.opentargets.etl.literature.spark.Helpers.{IOResource, IOResourceConfig}
-import org.apache.spark.sql.types.{DateType, IntegerType, LongType}
-import com.johnsnowlabs.nlp.functions._
-import com.johnsnowlabs.nlp.Annotation
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions.Window
-
-import java.lang.annotation
-import scala.util.Random
 
 object Grounding extends Serializable with LazyLogging {
   // https://meta.wikimedia.org/wiki/Stop_word_list/google_stop_word_list#English
@@ -258,42 +252,6 @@ object Grounding extends Serializable with LazyLogging {
     )
   }
 
-  def foldCooccurrences(df: DataFrame)(implicit sparkSession: SparkSession) = {
-    import sparkSession.implicits._
-    df.groupBy($"pmid", $"section", $"text")
-      .agg(
-        first($"pubDate").as("pubDate"),
-        first($"organisms").as("organisms"),
-        collect_set($"co-occurrence").as("co-occurrence")
-      )
-      .filter($"co-occurrence".isNotNull and size($"co-occurrence") > 0)
-      .groupBy($"pmid")
-      .agg(
-        first($"pubDate").as("pubDate"),
-        first($"organisms").as("organisms"),
-        collect_list(struct($"text", $"section", $"co-occurrence")).as("sentences")
-      )
-      .filter($"sentences".isNotNull and size($"sentences") > 0)
-  }
-
-  def foldMatches(df: DataFrame)(implicit sparkSession: SparkSession) = {
-    import sparkSession.implicits._
-    df.groupBy($"pmid", $"section", $"text")
-      .agg(
-        first($"pubDate").as("pubDate"),
-        first($"organisms").as("organisms"),
-        collect_set($"match").as("matches")
-      )
-      .filter($"matches".isNotNull and size($"matches") > 0)
-      .groupBy($"pmid")
-      .agg(
-        first($"pubDate").as("pubDate"),
-        first($"organisms").as("organisms"),
-        collect_list(struct($"text", $"section", $"matches")).as("sentences")
-      )
-      .filter($"sentences".isNotNull and size($"sentences") > 0)
-  }
-
   def loadEntities(df: DataFrame, epmcids: DataFrame)(
       implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
@@ -311,9 +269,9 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("pmid", when($"pmid" =!= "", $"pmid"))
       .withColumn("pmcid", when($"pmcid" =!= "", $"pmcid"))
       .join(epmcids, $"pmcid" === $"pmcid_lut", "left_outer")
-      .withColumn("pmid", coalesce($"pmid", $"pmid_lut").cast(IntegerType))
+      .withColumn("pmid", coalesce($"pmid", $"pmid_lut"))
       .drop(epmcids.columns.filter(_.endsWith("_lut")): _*)
-      .filter($"pmid".isNotNull)
+      .filter($"pmid".isNotNull or $"pmid" =!= "")
       .selectExpr("*", "sentence.*")
       .drop("sentence")
       .withColumn("section", lower($"section"))

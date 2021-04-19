@@ -1,16 +1,11 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
-import io.opentargets.etl.literature.Embedding.logger
-import io.opentargets.etl.literature.Grounding.foldCooccurrences
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.functions.col
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.IOResource
 import org.apache.spark.sql._
-import org.apache.spark.sql.expressions.Window
-import org.apache.spark.storage.StorageLevel
 
 object Processing extends Serializable with LazyLogging {
 
@@ -99,7 +94,6 @@ object Processing extends Serializable with LazyLogging {
     val empcConfiguration = context.configuration.processing
     val grounding = Grounding.compute(empcConfiguration)
 
-//    val rawEvidences = foldCooccurrences(grounding("cooccurrences"))
     logger.info("Processing raw evidences")
 
     val failedMatches = filterMatches(grounding("matches"), isMapped = false)
@@ -116,7 +110,6 @@ object Processing extends Serializable with LazyLogging {
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
-      // "rawEvidences" -> IOResource(rawEvidences, outputs.rawEvidence),
       "failedMatches" -> IOResource(
         failedMatches,
         outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),
