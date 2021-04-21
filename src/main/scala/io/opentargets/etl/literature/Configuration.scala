@@ -11,10 +11,7 @@ import pureconfig.generic.auto._
 object Configuration extends LazyLogging {
   lazy val config: Result[OTConfig] = load
 
-  case class Common(defaultSteps: Seq[String],
-                    partitions: Int,
-                    output: String,
-                    outputFormat: String)
+  case class Common(defaultSteps: Seq[String], output: String, outputFormat: String)
 
   case class ProcessingOutput(rawEvidence: IOResourceConfig,
                               cooccurrences: IOResourceConfig,
@@ -32,7 +29,14 @@ object Configuration extends LazyLogging {
 
   case class EmbeddingOutput(wordvec: IOResourceConfig, wordvecsyn: IOResourceConfig)
 
+  case class ModelConfiguration(windowSize: Int,
+                                numPartitions: Int,
+                                maxIter: Int,
+                                minCount: Int,
+                                stepSize: Double)
+
   case class EmbeddingSection(
+      modelConfiguration: ModelConfiguration,
       numSynonyms: Int,
       input: IOResourceConfig,
       outputs: EmbeddingOutput

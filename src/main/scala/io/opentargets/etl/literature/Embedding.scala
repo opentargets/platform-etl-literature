@@ -1,6 +1,7 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
+import io.opentargets.etl.literature.Configuration.ModelConfiguration
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
@@ -12,18 +13,18 @@ object Embedding extends Serializable with LazyLogging {
 
   private def makeWord2VecModel(
       df: DataFrame,
-      numPartitions: Int,
+      modelConfiguration: ModelConfiguration,
       inputColName: String,
       outputColName: String = "prediction"
   ): Word2VecModel = {
     logger.info(s"compute Word2Vec model for input col ${inputColName} into ${outputColName}")
 
     val w2vModel = new Word2Vec()
-      .setWindowSize(5)
-      .setNumPartitions(numPartitions)
-      .setMaxIter(1)
-      .setMinCount(3)
-      .setStepSize(0.025)
+      .setWindowSize(modelConfiguration.windowSize)
+      .setNumPartitions(modelConfiguration.numPartitions)
+      .setMaxIter(modelConfiguration.maxIter)
+      .setMinCount(modelConfiguration.minCount)
+      .setStepSize(modelConfiguration.stepSize)
       .setInputCol(inputColName)
       .setOutputCol(outputColName)
 
@@ -77,23 +78,36 @@ object Embedding extends Serializable with LazyLogging {
     matchesWithSynonyms
   }
 
-  private def generateWord2VecModel(df: DataFrame, numPartitions: Int)(
+  private def generateWord2VecModel(df: DataFrame, modelConfiguration: ModelConfiguration)(
       implicit sparkSession: SparkSession) = {
     val matchesModel =
-      makeWord2VecModel(df, numPartitions, inputColName = "terms", outputColName = "synonyms")
+      makeWord2VecModel(df, modelConfiguration, inputColName = "terms", outputColName = "synonyms")
 
     matchesModel
   }
 
-  def compute(literatureIndex: DataFrame, configuration: Configuration.OTConfig)(
+  private def transformMatches(selectCols: String*)(df: DataFrame): DataFrame =
+    df.groupBy(col("pmid"), col("section"))
+      .agg(collect_set(col("keywordId")).as("ids"))
+      .groupBy(col("pmid"))
+      .agg(collect_list(col("ids")).as("ids"))
+      .withColumn("all_ids", array_distinct(flatten(col("ids"))))
+      .withColumn("ids_v", concat(array(col("all_ids")), col("ids")))
+      .withColumn("terms", explode(col("ids_v")))
+      .selectExpr(selectCols: _*)
+
+  def compute(matches: DataFrame, configuration: Configuration.OTConfig)(
       implicit sparkSession: SparkSession): Map[String, IOResource] = {
     val outputs = configuration.embedding.outputs
+    val modelConf = configuration.embedding.modelConfiguration
 
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
-    logger.info("Number of partitions: " + configuration.common.partitions.toString())
+    logger.info(s"Model configuration: ${modelConf.toString}")
+
+    val groupedMatches = matches.transform(transformMatches("terms"))
 
     val matchesModels =
-      generateWord2VecModel(literatureIndex.select("terms"), configuration.common.partitions)
+      generateWord2VecModel(groupedMatches, modelConf)
     val matchesSynonyms =
       generateSynonyms(matchesModels, configuration.embedding.numSynonyms)
 
