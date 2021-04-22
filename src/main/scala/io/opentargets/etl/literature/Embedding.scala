@@ -91,7 +91,7 @@ object Embedding extends Serializable with LazyLogging {
       .agg(collect_set(col("keywordId")).as("ids"))
       .groupBy(col("pmid"))
       .agg(collect_list(col("ids")).as("ids"))
-      .withColumn("all_ids", array_distinct(flatten(col("ids"))))
+      .withColumn("all_ids", flatten(col("ids")))
       .withColumn("ids_v", concat(array(col("all_ids")), col("ids")))
       .withColumn("terms", explode(col("ids_v")))
       .selectExpr(selectCols: _*)
