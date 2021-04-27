@@ -10,10 +10,16 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.types.{DoubleType, LongType}
 
 object Processing extends Serializable with LazyLogging {
-
-  private def harmonicFn(c: Column): Column =
+  private def maxHarmonicFn(s: Column): Column =
     aggregate(
-      zip_with(c, sequence(lit(1), size(c)), (e1, e2) => e1 / pow(e2, 2D)),
+      zip_with(sequence(lit(1), s), sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2D)),
+      lit(0D),
+      (c1, c2) => c1 + c2
+    )
+
+  private def harmonicFn(v: Column, s: Column): Column =
+    aggregate(
+      zip_with(v, sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2D)),
       lit(0D),
       (c1, c2) => c1 + c2
     )
@@ -49,6 +55,7 @@ object Processing extends Serializable with LazyLogging {
     import context.sparkSession.implicits._
 
     val sectionImportances = context.configuration.common.publicationSectionRanks
+    val titleWeight = sectionImportances.withFilter(_.section == "title").map(_.weight).head
 
     val sectionRankTable =
       broadcast(
@@ -58,8 +65,6 @@ object Processing extends Serializable with LazyLogging {
 
     val wBySectionKeyword = Window.partitionBy("pmid", "section", "keywordId")
     val wByKeyword = Window.partitionBy("pmid", "keywordId")
-    val wBySection = Window.partitionBy("pmid", "section")
-    val wByPmid = Window.partitionBy("pmid")
 
     val cols = List(
       "pmid",
@@ -68,13 +73,9 @@ object Processing extends Serializable with LazyLogging {
       "year",
       "month",
       "day",
-      "keywordIds",
       "keywordId",
       "relevance",
       "keywordType",
-      "maxSectionFreq",
-      "keywordSectionFreq",
-      "label",
       "sentences"
     )
 
@@ -107,25 +108,14 @@ object Processing extends Serializable with LazyLogging {
       .fill(100, "rank" :: Nil)
       .na
       .fill(0.01, "weight" :: Nil)
-      .withColumn("keywordSectionFreq", count(lit(1)).over(wBySectionKeyword))
-      .withColumn("maxSectionFreq", max($"keywordSectionFreq").over(wBySection))
-      .withColumn(
-        "scoreByKeywordSection",
-        when(
-          $"maxSectionFreq" > 0,
-          $"keywordSectionFreq".cast(DoubleType) / $"maxSectionFreq".cast(DoubleType) * $"weight")
-          .otherwise(0D))
+      .withColumn("keywordSectionV",
+                  when($"section" =!= "title", collect_list($"weight").over(wBySectionKeyword))
+                    .otherwise(array(lit(titleWeight))))
       .dropDuplicates("pmid", "section", "keywordId")
-      .withColumn(
-        "relevance",
-        round(harmonicFn(
-                collect_list($"scoreByKeywordSection")
-                  .over(wByKeyword.orderBy($"rank"))
-              ),
-              4)
-      )
+      .withColumn("relevanceV",
+                  flatten(collect_list($"keywordSectionV").over(wByKeyword.orderBy($"rank".asc))))
+      .withColumn("relevance", harmonicFn($"relevanceV", size($"relevanceV")))
       .dropDuplicates("pmid", "keywordId")
-      .withColumn("keywordIds", collect_set($"keywordId").over(wByPmid))
       .join(sentencesDF, Seq("pmid"), "left_outer")
       .selectExpr(cols: _*)
   }
