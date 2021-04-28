@@ -1,7 +1,7 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
-import io.opentargets.etl.literature.Configuration.ModelConfiguration
+import io.opentargets.etl.literature.Configuration.{ModelConfiguration, PublicationSectionRank}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
@@ -11,47 +11,6 @@ import io.opentargets.etl.literature.spark.Helpers.IOResource
 import org.apache.spark.sql.expressions.Window
 
 object Embedding extends Serializable with LazyLogging {
-
-  /*
-    +------------------+---------+------------------------------+
-    |section           |N        |count(struct(pmid, keywordId))|
-    +------------------+---------+------------------------------+
-    |abstract          |116503185|46271939                      |
-    |results           |50031315 |10836737                      |
-    |discuss           |43289023 |12340036                      |
-    |other             |34434815 |9689403                       |
-    |intro             |27842336 |11004578                      |
-    |methods           |25213287 |11185594                      |
-    |title             |16715850 |15051096                      |
-    |table             |10836251 |5809557                       |
-    |fig               |9647168  |2834907                       |
-    |results,discuss   |5169808  |1338478                       |
-    |concl             |3305883  |1660817                       |
-    |case              |1643966  |1062965                       |
-    |suppl             |1336509  |500587                        |
-    |discuss,concl     |548469   |200646                        |
-    |abbr              |444678   |338709                        |
-    |appendix          |69560    |29606                         |
-    |methods,results   |49600    |17177                         |
-    |ack_fund          |45884    |34685                         |
-    |methods,concl     |29243    |11603                         |
-    |methods,discuss   |25208    |8736                          |
-    |auth_cont         |24154    |18708                         |
-    |comp_int          |15612    |10776                         |
-   */
-  val sectionImportanceTable: List[(String, Long)] =
-    List(
-      ("title", 1),
-      ("concl", 2),
-      ("abstract", 3),
-      ("discuss,concl", 3),
-      ("discuss", 4),
-      ("results", 5),
-      ("results,discuss", 5),
-      ("methods,results", 7),
-      ("methods,concl", 7),
-      ("methods,discuss", 7)
-    )
 
   private def makeWord2VecModel(
       df: DataFrame,
@@ -95,7 +54,7 @@ object Embedding extends Serializable with LazyLogging {
       try {
         bcModel.value.findSynonymsArray(word, numSynonyms)
       } catch {
-        case _: Throwable => Array.empty[(String, Double)]
+        case _ => Array.empty[(String, Double)]
       }
     })
 
@@ -128,15 +87,16 @@ object Embedding extends Serializable with LazyLogging {
     matchesModel
   }
 
-  private def transformMatches(selectCols: Seq[String], sectionRankingTable: DataFrame)(
-      df: DataFrame): DataFrame = {
+  private def transformMatches(
+      selectCols: Seq[String],
+      sectionRankingTable: Dataset[PublicationSectionRank])(df: DataFrame): DataFrame = {
 
     val wByFreq = Window.partitionBy("pmid", "section", "keywordId")
-    val w = Window.partitionBy("pmid").orderBy(col("importance").asc, col("f").desc)
+    val w = Window.partitionBy("pmid").orderBy(col("rank").asc, col("f").desc)
 
     df.join(sectionRankingTable, Seq("section"), "left_outer")
       .na
-      .fill(100, "importance" :: Nil)
+      .fill(100, "rank" :: Nil)
       .withColumn("f", count(lit(1)).over(wByFreq))
       .dropDuplicates("pmid", "section", "keywordId")
       .withColumn("terms", collect_list(col("keywordId")).over(w))
@@ -149,9 +109,14 @@ object Embedding extends Serializable with LazyLogging {
 
     val outputs = configuration.embedding.outputs
     val modelConf = configuration.embedding.modelConfiguration
+    val sectionImportances =
+      configuration.common.publicationSectionRanks
 
     val sectionRankTable =
-      broadcast(sectionImportanceTable.toDF("section", "importance").orderBy($"importance".asc))
+      broadcast(
+        sectionImportances
+          .toDS()
+          .orderBy($"rank".asc))
 
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
     logger.info(s"Model configuration: ${modelConf.toString}")
@@ -166,12 +131,14 @@ object Embedding extends Serializable with LazyLogging {
     // The matchesModel is a W2VModel and the output is parquet.
     matchesModels.save(outputs.wordvec.path)
 
-    logger.info(s"write synonyms computation")
-    val dataframesToSave = Map(
-      "word2vecSynonym" -> IOResource(matchesSynonyms, outputs.wordvecsyn)
-    )
-    Helpers.writeTo(dataframesToSave)
+    // TODO FIX!
+//    logger.info(s"write synonyms computation")
+//    val dataframesToSave = Map(
+//      "word2vecSynonym" -> IOResource(matchesSynonyms, outputs.wordvecsyn)
+//    )
+//    Helpers.writeTo(dataframesToSave)
 
+    val dataframesToSave = Map.empty[String, IOResource]
     dataframesToSave
   }
 

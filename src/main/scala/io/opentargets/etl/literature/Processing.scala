@@ -6,8 +6,23 @@ import org.apache.spark.sql.functions._
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.IOResource
 import org.apache.spark.sql._
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.types.{DoubleType, LongType}
 
 object Processing extends Serializable with LazyLogging {
+  private def maxHarmonicFn(s: Column): Column =
+    aggregate(
+      zip_with(sequence(lit(1), s), sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2D)),
+      lit(0D),
+      (c1, c2) => c1 + c2
+    )
+
+  private def harmonicFn(v: Column, s: Column): Column =
+    aggregate(
+      zip_with(v, sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2D)),
+      lit(0D),
+      (c1, c2) => c1 + c2
+    )
 
   private def filterCooccurrences(df: DataFrame, isMapped: Boolean)(
       implicit sparkSession: SparkSession): DataFrame = {
@@ -34,6 +49,75 @@ object Processing extends Serializable with LazyLogging {
     df.selectExpr("*", "match.*")
       .drop(droppedCols: _*)
       .filter($"isMapped" === isMapped)
+  }
+
+  private def filterMatchesForCH(df: DataFrame)(implicit context: ETLSessionContext): DataFrame = {
+    import context.sparkSession.implicits._
+
+    val sectionImportances = context.configuration.common.publicationSectionRanks
+    val titleWeight = sectionImportances.withFilter(_.section == "title").map(_.weight).head
+
+    val sectionRankTable =
+      broadcast(
+        sectionImportances
+          .toDS()
+          .orderBy($"rank".asc))
+
+    val wBySectionKeyword = Window.partitionBy("pmid", "section", "keywordId")
+    val wByKeyword = Window.partitionBy("pmid", "keywordId")
+
+    val cols = List(
+      "pmid",
+      "pmcid",
+      "date",
+      "year",
+      "month",
+      "day",
+      "keywordId",
+      "relevance",
+      "keywordType",
+      "sentences"
+    )
+
+    val fdf = df
+      .withColumn("pmid", $"pmid".cast(LongType))
+      .withColumnRenamed("type", "keywordType")
+
+    val sentencesDF = fdf
+      .filter($"section".isInCollection(Seq("title", "abstract")))
+      .groupBy($"pmid", $"section")
+      .agg(
+        struct(
+          $"section",
+          collect_list(
+            struct($"label",
+                   $"keywordType",
+                   $"keywordId",
+                   $"startInSentence",
+                   $"endInSentence",
+                   $"sectionStart",
+                   $"sectionEnd")).as("matches")
+        ).as("sentencesBySection")
+      )
+      .groupBy($"pmid")
+      .agg(to_json(collect_list($"sentencesBySection")).as("sentences"))
+
+    fdf
+      .join(sectionRankTable, Seq("section"), "left_outer")
+      .na
+      .fill(100, "rank" :: Nil)
+      .na
+      .fill(0.01, "weight" :: Nil)
+      .withColumn("keywordSectionV",
+                  when($"section" =!= "title", collect_list($"weight").over(wBySectionKeyword))
+                    .otherwise(array(lit(titleWeight))))
+      .dropDuplicates("pmid", "section", "keywordId")
+      .withColumn("relevanceV",
+                  flatten(collect_list($"keywordSectionV").over(wByKeyword.orderBy($"rank".asc))))
+      .withColumn("relevance", harmonicFn($"relevanceV", size($"relevanceV")))
+      .dropDuplicates("pmid", "keywordId")
+      .join(sentencesDF, Seq("pmid"), "left_outer")
+      .selectExpr(cols: _*)
   }
 
   private def aggregateMatches(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
@@ -105,7 +189,7 @@ object Processing extends Serializable with LazyLogging {
     logger.info("Processing coOccurences calculate done")
     val coocs = filterCooccurrences(grounding("cooccurrences"), isMapped = true)
 
-    val literatureIndex = matches.transform(aggregateMatches)
+    val literatureIndexAlt = matches.transform(filterMatchesForCH)
 
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
@@ -118,7 +202,7 @@ object Processing extends Serializable with LazyLogging {
         outputs.matches.copy(path = context.configuration.common.output + "/failedCooccurrences")),
       "cooccurrences" -> IOResource(coocs, outputs.cooccurrences),
       "matches" -> IOResource(matches, outputs.matches),
-      "literatureIndex" -> IOResource(literatureIndex, outputs.literatureIndex)
+      "literatureIndex" -> IOResource(literatureIndexAlt, outputs.literatureIndex)
     )
 
     Helpers.writeTo(dataframesToSave)
