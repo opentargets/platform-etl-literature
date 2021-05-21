@@ -16,6 +16,7 @@ metals.sbt
 project/metals.sbt
 
 # Other
+tmp/
 tmp/.sbtopts
 .jvmopts
 *.out
