@@ -16,6 +16,7 @@ metals.sbt
 project/metals.sbt
 
 # Other
+tmp/
 tmp/.sbtopts
 .jvmopts
 *.out
@@ -34,4 +35,5 @@ application.xml
 
 # Mac
 .DS_Store
-
+out/
+.bsp/
