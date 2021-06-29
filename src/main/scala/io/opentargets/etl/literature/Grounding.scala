@@ -257,24 +257,67 @@ object Grounding extends Serializable with LazyLogging {
     import sparkSession.implicits._
 
     df.withColumn("trace_source", input_file_name())
-      .withColumn("sentence", explode($"sentences"))
-      .drop("sentences")
       .withColumn("pmid", when($"pmid".isNotNull and $"pmid" =!= "" and $"pmid" =!= "0", $"pmid"))
       .withColumn("pmcid",
                   when($"pmcid".isNotNull and $"pmcid" =!= "" and $"pmcid" =!= "0", $"pmcid"))
+      .withColumn("failed_pmid", $"pmid".isNull)
+      .withColumn("failed_pmcid", $"pmcid".isNull)
+      .withColumn("failed_pmcid_and_pmid", $"pmcid".isNull and $"pmid".isNull)
+      .withColumn("failed_pmid_not_pmcid", $"pmid".isNull and $"pmcid".isNotNull)
       .join(epmcids, $"pmcid" === $"pmcid_lut", "left_outer")
       .withColumn("pmid", coalesce($"pmid", $"pmid_lut"))
       .drop(epmcids.columns.filter(_.endsWith("_lut")): _*)
-      .filter($"pmid".isNotNull)
-      .selectExpr("*", "sentence.*")
-      .drop("sentence")
-      .withColumn("section", lower($"section"))
-      .filter($"section".isNotNull)
+      .withColumn("failed_recover_pmid_not_pmcid", $"pmid".isNull and $"pmcid".isNotNull)
       .withColumn("date",
                   when($"pubDate".isNotNull and $"pubDate" =!= "", $"pubDate".cast(DateType)))
+      .withColumn("failed_date", $"date".isNull)
       .withColumn("year", when($"date".isNotNull, year($"date")))
       .withColumn("month", when($"date".isNotNull, month($"date")))
       .withColumn("day", when($"date".isNotNull, dayofmonth($"date")))
+      .withColumn("sentence", explode($"sentences"))
+      .drop("sentences")
+      .selectExpr("*", "sentence.*")
+      .drop("sentence")
+      .withColumn("section", lower($"section"))
+      .withColumn("failed_section", $"section".isNull)
+      .withColumn("failed_sentence", $"text".rlike("[^\\x20-\\x7e]"))
+  }
+
+  def sampleEntities(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
+    import sparkSession.implicits._
+    // check for pmcid null
+    // check for pmid null
+    // check for section null
+    // sample 1% 0.01
+
+    val fileCol = "trace_source"
+    val failedCols = df.columns.filter(_.startsWith("failed_"))
+    val okCols = failedCols.map(c => col(c) === true)
+    val okFilter = okCols.tail.foldLeft(okCols.head) { (B, c) =>
+      B or c
+    }
+
+    val allFailedCols = failedCols :+ "failed_true" :+ "failed_false"
+    val aggs = allFailedCols.map { cn =>
+      sum(when(col(cn) === true, lit(1)).otherwise(0)).as(cn + "_count")
+    }
+
+    val r = df
+      .withColumn("failed_true", when(okFilter, typedLit(true)).otherwise(typedLit(false)))
+      .withColumn("failed_false", not($"failed_true"))
+
+    r.groupBy(col(fileCol))
+      .agg(aggs.head, aggs.tail: _*)
+  }
+
+  def filterEntities(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
+    import sparkSession.implicits._
+
+    val failedColumns = df.columns.filter(_.startsWith("failed_"))
+
+    df.drop(failedColumns: _*)
+      .filter($"pmid".isNotNull)
+      .filter($"section".isNotNull)
   }
 
   private def cleanAndScoreArrayColumn[A](c: Column, score: Double, keyTypeName: String): Column =
@@ -476,9 +519,11 @@ object Grounding extends Serializable with LazyLogging {
     logger.info("load and preprocess EPMC data")
     val entities = loadEntities(epmcDf, idLUT)
 
-    val mappedLabels = mapEntities(entities, luts, pipeline, pipelineColumns).cache()
-    val resolvedEntities = resolveEntities(entities, mappedLabels)
+    val sampledDF = entities.transform(sampleEntities)
+    val sentences = entities.transform(filterEntities)
+    val mappedLabels = mapEntities(sentences, luts, pipeline, pipelineColumns).cache()
+    val resolvedEntities = resolveEntities(sentences, mappedLabels)
 
-    resolvedEntities
+    resolvedEntities + ("samples" -> sampledDF)
   }
 }

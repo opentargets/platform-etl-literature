@@ -28,9 +28,7 @@ object Processing extends Serializable with LazyLogging {
       implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
-    val droppedCols = "co-occurrence" +: (if (isMapped)
-                                            df.columns.filter(_.startsWith("trace_")).toList
-                                          else List.empty)
+    val droppedCols = "co-occurrence" :: Nil
 
     df.selectExpr("*", "`co-occurrence`.*")
       .drop(droppedCols: _*)
@@ -42,9 +40,7 @@ object Processing extends Serializable with LazyLogging {
       implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
-    val droppedCols = "match" +: (if (isMapped)
-                                    df.columns.filter(_.startsWith("trace_")).toList
-                                  else List.empty)
+    val droppedCols = "match" :: Nil
 
     df.selectExpr("*", "match.*")
       .drop(droppedCols: _*)
@@ -180,6 +176,7 @@ object Processing extends Serializable with LazyLogging {
 
     logger.info("Processing raw evidences")
 
+    val samples = grounding("samples")
     val failedMatches = filterMatches(grounding("matches"), isMapped = false)
     val failedCoocs = filterCooccurrences(grounding("cooccurrences"), isMapped = false)
 
@@ -194,6 +191,7 @@ object Processing extends Serializable with LazyLogging {
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
+      "samples" -> IOResource(samples, outputs.rawEvidence),
       "failedMatches" -> IOResource(
         failedMatches,
         outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),
