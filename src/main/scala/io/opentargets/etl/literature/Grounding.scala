@@ -293,9 +293,7 @@ object Grounding extends Serializable with LazyLogging {
     val fileCol = "trace_source"
     val failedCols = df.columns.filter(_.startsWith("failed_"))
     val okCols = failedCols.map(c => col(c) === true)
-    val okFilter = okCols.tail.foldLeft(okCols.head) { (B, c) =>
-      B or c
-    }
+    val okFilter = okCols.reduceLeft((B, c) => B.or(c))
 
     val allFailedCols = failedCols :+ "failed_true" :+ "failed_false"
     val aggs = allFailedCols.map { cn =>
