@@ -298,7 +298,9 @@ object Grounding extends Serializable with LazyLogging {
     val allFailedCols = failedCols :+ "failed_true" :+ "failed_false"
     val aggs = allFailedCols.map { cn =>
       sum(when(col(cn) === true, lit(1)).otherwise(0)).as(cn + "_count")
-    }
+    } ++ Array(
+      collect_set(when($"failed_recover_pmid_not_pmcid" === true, $"pmcid"))
+        .as("failed_recovered_pmcids"))
 
     val r = df
       .withColumn("failed_true", when(okFilter, typedLit(true)).otherwise(typedLit(false)))
