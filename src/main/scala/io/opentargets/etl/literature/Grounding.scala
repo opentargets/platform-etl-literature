@@ -267,7 +267,7 @@ object Grounding extends Serializable with LazyLogging {
       .join(epmcids, $"pmcid" === $"pmcid_lut", "left_outer")
       .withColumn("pmid", coalesce($"pmid", $"pmid_lut"))
       .drop(epmcids.columns.filter(_.endsWith("_lut")): _*)
-      .withColumn("failed_recover_pmid_not_pmcid", $"pmid".isNull and $"pmcid".isNotNull)
+      .withColumn("failed_recover_pmid_not_pmcid", $"failed_pmid_not_pmcid" and $"pmid".isNotNull)
       .withColumn("date",
                   when($"pubDate".isNotNull and $"pubDate" =!= "", $"pubDate".cast(DateType)))
       .withColumn("failed_date", $"date".isNull)
@@ -299,7 +299,7 @@ object Grounding extends Serializable with LazyLogging {
     val aggs = allFailedCols.map { cn =>
       sum(when(col(cn) === true, lit(1)).otherwise(0)).as(cn + "_count")
     } ++ Array(
-      collect_set(when($"failed_recover_pmid_not_pmcid" === true, $"pmcid"))
+      collect_set(when($"failed_recover_pmid_not_pmcid" === true, struct($"pmcid", $"pmid")))
         .as("failed_recovered_pmcids"))
 
     val r = df
