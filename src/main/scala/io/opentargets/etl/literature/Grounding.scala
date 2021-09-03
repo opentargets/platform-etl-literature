@@ -160,7 +160,7 @@ object Grounding extends Serializable with LazyLogging {
       .filter($"isMapped" === true)
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
-      .select("type", "label", "keywordId")
+      .select("type", "label", "labelN", "keywordId")
       .distinct()
       .repartition($"type", $"label")
       .orderBy($"type", $"label")
@@ -187,6 +187,8 @@ object Grounding extends Serializable with LazyLogging {
       $"trace_source"
     )
 
+    val matchesCols = baseCols ::: $"labelN" :: $"match" :: Nil
+
     val mergedMatches = entities
       .withColumn("match", explode($"matches"))
       .drop("matches")
@@ -207,7 +209,7 @@ object Grounding extends Serializable with LazyLogging {
           $"isMapped"
         )
       )
-      .select(baseCols :+ $"match": _*)
+      .select(matchesCols: _*)
 
     val mergedCooc = entities
       .withColumn("cooc", explode($"co-occurrence"))
