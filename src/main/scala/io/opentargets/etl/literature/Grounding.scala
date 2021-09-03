@@ -161,7 +161,7 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
       .select("type", "label", "labelN", "keywordId")
-      .distinct()
+      .dropDuplicates("type", "label", "keywordId")
       .repartition($"type", $"label")
       .orderBy($"type", $"label")
 
