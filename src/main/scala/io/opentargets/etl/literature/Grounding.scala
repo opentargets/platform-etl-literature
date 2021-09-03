@@ -388,13 +388,13 @@ object Grounding extends Serializable with LazyLogging {
         "id as keywordId",
         "approvedName as name",
         "approvedSymbol as symbol",
-        "nameSynonyms",
-        "symbolSynonyms",
-        "coalesce(proteinAnnotations.accessions, array()) as accessions"
+        "transform(filter(synonyms, e -> e.source == 'HGNC'), e -> e.label) as symbolSynonyms",
+        "coalesce(synonyms.label, array()) as nameSynonyms",
+        "coalesce(proteinIds.id, array()) as accessions"
       )
       .withColumn("nameC", cleanAndScoreArrayColumn[String](array($"name"), 1, labelT))
       .withColumn("symbolC", cleanAndScoreArrayColumn[String](array($"symbol"), 1, tokenT))
-      .withColumn("nameSynonyms", cleanAndScoreArrayColumn[String]($"nameSynonyms", 0.999, labelT))
+      .withColumn("nameSynonyms", cleanAndScoreArrayColumn[String]($"nameSynonyms", 0.998, labelT))
       .withColumn("symbolSynonyms",
                   cleanAndScoreArrayColumn[String]($"symbolSynonyms", 0.999, tokenT))
       .withColumn("accessions", cleanAndScoreArrayColumn[String]($"accessions", 0.999, tokenT))
