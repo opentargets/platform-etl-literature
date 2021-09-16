@@ -160,8 +160,8 @@ object Grounding extends Serializable with LazyLogging {
       .filter($"isMapped" === true)
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
-      .select("type", "label", "keywordId")
-      .distinct()
+      .select("type", "label", "labelN", "keywordId")
+      .dropDuplicates("type", "label", "keywordId")
       .repartition($"type", $"label")
       .orderBy($"type", $"label")
 
@@ -187,6 +187,8 @@ object Grounding extends Serializable with LazyLogging {
       $"trace_source"
     )
 
+    val matchesCols = baseCols ::: $"labelN" :: $"match" :: Nil
+
     val mergedMatches = entities
       .withColumn("match", explode($"matches"))
       .drop("matches")
@@ -207,7 +209,7 @@ object Grounding extends Serializable with LazyLogging {
           $"isMapped"
         )
       )
-      .select(baseCols :+ $"match": _*)
+      .select(matchesCols: _*)
 
     val mergedCooc = entities
       .withColumn("cooc", explode($"co-occurrence"))
@@ -382,31 +384,46 @@ object Grounding extends Serializable with LazyLogging {
       implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
     targets
-      .selectExpr(
-        "id as keywordId",
-        "approvedName as name",
-        "approvedSymbol as symbol",
-        "nameSynonyms",
-        "symbolSynonyms",
-        "coalesce(proteinAnnotations.accessions, array()) as accessions"
+      .select(
+        $"id" as "keywordId",
+        $"approvedName" as "name",
+        $"approvedSymbol" as "symbol",
+        $"symbolSynonyms.label" as "symbolSynonyms",
+        $"nameSynonyms.label" as "nameSynonyms",
+        $"obsoleteSymbols.label" as "obsoleteSymbols",
+        $"obsoleteNames.label" as "obsoleteNames",
+        array_distinct(coalesce($"proteinIds.id", typedLit(Array.empty[String]))) as "accessions"
       )
       .withColumn("nameC", cleanAndScoreArrayColumn[String](array($"name"), 1, labelT))
       .withColumn("symbolC", cleanAndScoreArrayColumn[String](array($"symbol"), 1, tokenT))
-      .withColumn("nameSynonyms", cleanAndScoreArrayColumn[String]($"nameSynonyms", 0.999, labelT))
-      .withColumn("symbolSynonyms",
+      .withColumn("nameSynonymsC", cleanAndScoreArrayColumn[String]($"nameSynonyms", 0.999, labelT))
+      .withColumn("symbolSynonymsC",
                   cleanAndScoreArrayColumn[String]($"symbolSynonyms", 0.999, tokenT))
-      .withColumn("accessions", cleanAndScoreArrayColumn[String]($"accessions", 0.999, tokenT))
+      .withColumn("accessionsC", cleanAndScoreArrayColumn[String]($"accessions", 0.999, tokenT))
+      .withColumn("obsoleteNamesC",
+                  cleanAndScoreArrayColumn[String]($"obsoleteNames", 0.998, labelT))
+      .withColumn("obsoleteSymbolsC",
+                  cleanAndScoreArrayColumn[String]($"obsoleteSymbols", 0.998, tokenT))
       .withColumn(
         "_text",
         explode(
-          flatten(
-            array(
-              $"nameC",
-              $"symbolC",
-              $"nameSynonyms",
-              $"symbolSynonyms",
-              $"accessions"
-            )))
+          filter(
+            array_distinct(
+              flatten(
+                array(
+                  $"nameC",
+                  $"symbolC",
+                  $"nameSynonymsC",
+                  $"symbolSynonymsC",
+                  $"obsoleteNamesC",
+                  $"obsoleteSymbolsC",
+                  $"accessionsC"
+                )
+              )
+            ),
+            c => length(c.getField("key")) > 0
+          )
+        )
       )
       .withColumn("text", $"_text".getField("key"))
       .withColumn("factor", $"_text".getField("factor"))
