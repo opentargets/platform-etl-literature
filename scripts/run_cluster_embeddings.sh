@@ -18,6 +18,6 @@ gcloud beta dataproc jobs submit spark \
    --project=open-targets-eu-dev \
    --region=europe-west1 \
    --async \
-   --files=gs://ot-snapshots/literature/20210908/application-embeddings.conf \
-   --properties=spark.executor.extraJavaOptions=-Dconfig.file=application-embeddings.conf,spark.driver.extraJavaOptions=-Dconfig.file=application-embeddings.conf \
+   --files=gs://ot-snapshots/literature/20210908/application-embedding.conf \
+   --properties=spark.executor.extraJavaOptions=-Dconfig.file=application-embedding.conf,spark.driver.extraJavaOptions=-Dconfig.file=application-embedding.conf \
    --jar=gs://ot-snapshots/literature/20210908/io-opentargets-etl-literature-assembly-1.11.jar
