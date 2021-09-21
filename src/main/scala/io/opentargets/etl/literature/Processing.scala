@@ -176,9 +176,13 @@ object Processing extends Serializable with LazyLogging {
 
     logger.info("Processing raw evidences and persist matches and cooccurrences")
 
+    ("matches" :: "cooccurrences" :: Nil) foreach { l =>
+      grounding(l).persist()
+    }
+
     val samples = grounding("samples")
-    val failedMatches = filterMatches(grounding("matches").persist(), isMapped = false)
-    val failedCoocs = filterCooccurrences(grounding("cooccurrences").persist(), isMapped = false)
+    val failedMatches = filterMatches(grounding("matches"), isMapped = false)
+    val failedCoocs = filterCooccurrences(grounding("cooccurrences"), isMapped = false)
 
     logger.info("Processing matches calculate done")
     val matches = filterMatches(grounding("matches"), isMapped = true)
