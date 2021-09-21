@@ -174,7 +174,9 @@ object Processing extends Serializable with LazyLogging {
     val empcConfiguration = context.configuration.processing
     val grounding = Grounding.compute(empcConfiguration)
 
-    logger.info("Processing raw evidences")
+    logger.info("Processing raw evidences and persist matches and cooccurrences")
+    val _ = grounding("matches").persist()
+    val _ = grounding("cooccurrences").persist()
 
     val samples = grounding("samples")
     val failedMatches = filterMatches(grounding("matches"), isMapped = false)

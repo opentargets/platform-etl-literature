@@ -196,7 +196,7 @@ object Grounding extends Serializable with LazyLogging {
       .join(luts, Seq("type", "labelN"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
       .filter($"isMapped" === true)
-      .persist(StorageLevel.DISK_ONLY)
+    // .persist(StorageLevel.DISK_ONLY)
 
     val persistedMappedLabels = mappedLabel
       .withColumn("rank", dense_rank().over(w))
@@ -580,7 +580,7 @@ object Grounding extends Serializable with LazyLogging {
     val sampledDF = entities.transform(sampleEntities)
     val sentences = entities.transform(filterEntities)
     val mappedLabels =
-      mapEntities(sentences, luts, pipeline, pipelineColumns).persist(StorageLevel.MEMORY_ONLY)
+      mapEntities(sentences, luts, pipeline, pipelineColumns) // .persist(StorageLevel.MEMORY_ONLY)
     val resolvedEntities = resolveEntities(sentences, mappedLabels)
 
     resolvedEntities + ("samples" -> sampledDF)
