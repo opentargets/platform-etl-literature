@@ -110,7 +110,8 @@ object Grounding extends Serializable with LazyLogging {
   private def disambiguate(df: DataFrame,
                            labelColumnName: String,
                            keywordColumnName: String): DataFrame = {
-
+    // prefix is used to prefix each new temp column is created in here so no clash with
+    // any other already present
     val prefix = Random.alphanumeric.take(6)
     val keyC = col(keywordColumnName)
     val distinctKeywordsPerLabelPerPub = s"${prefix}_distinctKeywordsPerLabelPerPub"
