@@ -10,6 +10,7 @@ import com.johnsnowlabs.nlp.{DocumentAssembler, Finisher}
 import com.johnsnowlabs.nlp.annotator._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions.Window
+import org.apache.spark.storage.StorageLevel
 
 import scala.util.Random
 
@@ -575,7 +576,8 @@ object Grounding extends Serializable with LazyLogging {
 
     val sampledDF = entities.transform(sampleEntities)
     val sentences = entities.transform(filterEntities)
-    val mappedLabels = mapEntities(sentences, luts, pipeline, pipelineColumns)
+    val mappedLabels =
+      mapEntities(sentences, luts, pipeline, pipelineColumns).persist(StorageLevel.MEMORY_ONLY)
     val resolvedEntities = resolveEntities(sentences, broadcast(mappedLabels))
 
     resolvedEntities + ("samples" -> sampledDF)
