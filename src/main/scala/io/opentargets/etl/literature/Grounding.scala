@@ -583,7 +583,7 @@ object Grounding extends Serializable with LazyLogging {
     val sentences = entities.transform(filterEntities)
     val mappedLabels =
       mapEntities(sentences, luts, pipeline, pipelineColumns).persist(StorageLevel.MEMORY_ONLY)
-    val resolvedEntities = resolveEntities(sentences, broadcast(mappedLabels))
+    val resolvedEntities = resolveEntities(sentences, mappedLabels)
 
     resolvedEntities + ("samples" -> sampledDF)
   }
