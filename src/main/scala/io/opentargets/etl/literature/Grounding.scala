@@ -196,18 +196,15 @@ object Grounding extends Serializable with LazyLogging {
       .join(luts, Seq("type", "labelN"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
       .filter($"isMapped" === true)
-      .withColumn("rank", dense_rank().over(w))
-      .filter($"rank" === 1)
-      .persist()
+      .persist(StorageLevel.DISK_ONLY)
 
     val persistedMappedLabels = mappedLabel
+      .withColumn("rank", dense_rank().over(w))
+      .filter($"rank" === 1)
       .transform(disambiguate(_, "labelN", "keywordId"))
       .select("type", "label", "labelN", "keywordId")
-      .distinct()
-      .repartition($"type", $"label")
+      .dropDuplicates("type", "label", "keywordId")
       .orderBy($"type", $"label")
-
-    mappedLabel.unpersist()
 
     persistedMappedLabels
   }
