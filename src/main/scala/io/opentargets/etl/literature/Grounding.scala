@@ -6,10 +6,12 @@ import org.apache.spark.sql.functions._
 import io.opentargets.etl.literature.spark.Helpers
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.sql._
-import com.johnsnowlabs.nlp.{DocumentAssembler, Finisher, SparkNLP}
+import com.johnsnowlabs.nlp.{DocumentAssembler, Finisher}
 import com.johnsnowlabs.nlp.annotator._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions.Window
+
+import scala.util.Random
 
 object Grounding extends Serializable with LazyLogging {
   // https://meta.wikimedia.org/wiki/Stop_word_list/google_stop_word_list#English
@@ -104,6 +106,42 @@ object Grounding extends Serializable with LazyLogging {
     pipeline
   }
 
+  private def disambiguate(df: DataFrame,
+                           labelColumnName: String,
+                           keywordColumnName: String): DataFrame = {
+
+    val prefix = Random.alphanumeric.take(6)
+    val keyC = col(keywordColumnName)
+    val distinctKeywordsPerLabelPerPub = s"${prefix}_distinctKeywordsPerLabelPerPub"
+    val minDistinctKeywordsPerLabelPerPubOverKeywordPerPub =
+      s"${prefix}_minDistinctKeywordsPerLabelPerPubOverKeywordPerPub"
+    val minDistinctKeywordsPerLabelOverKeywordOverallPubs =
+      s"${prefix}_minDistinctKeywordsPerLabelOverKeywordOverallPubs"
+
+    val keywordColumns = "type" :: keywordColumnName :: Nil
+    val windowPerKeyword = Window.partitionBy(keywordColumns.map(col): _*)
+
+    val labelColumnsPerPub = "pmid" :: "pmcid" :: "type" :: labelColumnName :: Nil
+    val keywordColumnsPerPub = "pmid" :: "pmcid" :: "type" :: keywordColumnName :: Nil
+    val windowPerLabelPerPub = Window.partitionBy(labelColumnsPerPub.map(col): _*)
+    val windowPerKeywordPerPub = Window.partitionBy(keywordColumnsPerPub.map(col): _*)
+
+    df.withColumn(distinctKeywordsPerLabelPerPub,
+                  approx_count_distinct(keyC, 0.001).over(windowPerLabelPerPub))
+      .withColumn(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub,
+                  min(col(distinctKeywordsPerLabelPerPub)).over(windowPerKeywordPerPub))
+      .withColumn(
+        minDistinctKeywordsPerLabelOverKeywordOverallPubs,
+        min(col(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub)).over(windowPerKeyword))
+      .filter(col(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub) <= col(
+        minDistinctKeywordsPerLabelOverKeywordOverallPubs))
+      .drop(
+        minDistinctKeywordsPerLabelOverKeywordOverallPubs,
+        distinctKeywordsPerLabelPerPub,
+        minDistinctKeywordsPerLabelPerPubOverKeywordPerPub
+      )
+  }
+
   private def normaliseSentence(df: DataFrame,
                                 pipeline: Pipeline,
                                 columnNamePrefix: String,
@@ -130,9 +168,8 @@ object Grounding extends Serializable with LazyLogging {
 
     val labels = entities
       .withColumn("match", explode($"matches"))
-      .drop("matches")
       .selectExpr("*", "match.*")
-      .select("type", "label")
+      .drop("match", "matches")
       .withColumn("nLabel", Helpers.normalise($"label"))
       .withColumn(
         "textV",
@@ -154,14 +191,14 @@ object Grounding extends Serializable with LazyLogging {
 
     val w = Window.partitionBy($"type", $"labelN").orderBy(scoreC.desc)
     val mappedLabel = labels
-      .select("type", "label", "labelN")
       .join(luts, Seq("type", "labelN"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
       .filter($"isMapped" === true)
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
+      .transform(disambiguate(_, "labelN", "keywordId"))
       .select("type", "label", "labelN", "keywordId")
-      .dropDuplicates("type", "label", "keywordId")
+      .distinct()
       .repartition($"type", $"label")
       .orderBy($"type", $"label")
 
@@ -538,8 +575,8 @@ object Grounding extends Serializable with LazyLogging {
 
     val sampledDF = entities.transform(sampleEntities)
     val sentences = entities.transform(filterEntities)
-    val mappedLabels = mapEntities(sentences, luts, pipeline, pipelineColumns).cache()
-    val resolvedEntities = resolveEntities(sentences, mappedLabels)
+    val mappedLabels = mapEntities(sentences, luts, pipeline, pipelineColumns)
+    val resolvedEntities = resolveEntities(sentences, broadcast(mappedLabels))
 
     resolvedEntities + ("samples" -> sampledDF)
   }

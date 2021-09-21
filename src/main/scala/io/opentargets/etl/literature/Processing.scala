@@ -182,6 +182,7 @@ object Processing extends Serializable with LazyLogging {
 
     logger.info("Processing matches calculate done")
     val matches = filterMatches(grounding("matches"), isMapped = true)
+    // add disambiguate here perhaps?
 
     logger.info("Processing coOccurences calculate done")
     val coocs = filterCooccurrences(grounding("cooccurrences"), isMapped = true)
