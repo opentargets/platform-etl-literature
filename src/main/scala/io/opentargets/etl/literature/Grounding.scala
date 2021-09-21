@@ -197,13 +197,18 @@ object Grounding extends Serializable with LazyLogging {
       .filter($"isMapped" === true)
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
+      .persist()
+
+    val persistedMappedLabels = mappedLabel
       .transform(disambiguate(_, "labelN", "keywordId"))
       .select("type", "label", "labelN", "keywordId")
       .distinct()
       .repartition($"type", $"label")
       .orderBy($"type", $"label")
 
-    mappedLabel
+    mappedLabel.unpersist()
+
+    persistedMappedLabels
   }
 
   def resolveEntities(entities: DataFrame, mappedLabels: DataFrame)(
