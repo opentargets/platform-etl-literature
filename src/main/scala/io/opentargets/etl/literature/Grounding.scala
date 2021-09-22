@@ -209,6 +209,7 @@ object Grounding extends Serializable with LazyLogging {
       .transform(disambiguate(_, "labelN", "keywordId"))
       .select("type", "label", "labelN", "keywordId")
       .dropDuplicates("type", "label", "keywordId")
+      .repartition(1024)
 
     persistedMappedLabels
   }
