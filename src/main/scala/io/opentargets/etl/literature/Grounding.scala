@@ -201,8 +201,6 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("isMapped", $"keywordId".isNotNull)
       .filter($"isMapped" === true)
       .select(selelectedCols.map(col): _*)
-      .repartition(2048)
-      .persist()
 
     logger.info("disambiguate after grounding")
     val persistedMappedLabels = mappedLabel
@@ -212,7 +210,6 @@ object Grounding extends Serializable with LazyLogging {
       .select("type", "label", "labelN", "keywordId")
       .dropDuplicates("type", "label", "keywordId")
 
-    mappedLabel.unpersist()
     persistedMappedLabels
   }
 
