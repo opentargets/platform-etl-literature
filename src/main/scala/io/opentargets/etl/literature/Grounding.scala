@@ -200,12 +200,12 @@ object Grounding extends Serializable with LazyLogging {
       .join(luts, Seq("type", "labelN"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
       .filter($"isMapped" === true)
+      .select(selelectedCols.map(col): _*)
       .repartition(2048)
       .persist()
 
     logger.info("disambiguate after grounding")
     val persistedMappedLabels = mappedLabel
-      .select(selelectedCols.map(col): _*)
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
       .transform(disambiguate(_, "labelN", "keywordId"))
