@@ -8,6 +8,7 @@ import io.opentargets.etl.literature.spark.Helpers.IOResource
 import org.apache.spark.sql._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.types.{DoubleType, LongType}
+import org.apache.spark.storage.StorageLevel
 
 object Processing extends Serializable with LazyLogging {
   private def maxHarmonicFn(s: Column): Column =
@@ -177,7 +178,7 @@ object Processing extends Serializable with LazyLogging {
     logger.info("Processing raw evidences and persist matches and cooccurrences")
 
     ("matches" :: "cooccurrences" :: Nil) foreach { l =>
-      grounding(l).persist()
+      grounding(l).persist(StorageLevel.DISK_ONLY)
     }
 
     val samples = grounding("samples")

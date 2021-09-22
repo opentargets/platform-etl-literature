@@ -8,6 +8,7 @@ import org.apache.spark.ml.Pipeline
 import org.apache.spark.sql._
 import com.johnsnowlabs.nlp.{DocumentAssembler, Finisher}
 import com.johnsnowlabs.nlp.annotator._
+import io.opentargets.etl.literature.spark.Helpers.IOResource
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.storage.StorageLevel
@@ -191,20 +192,23 @@ object Grounding extends Serializable with LazyLogging {
     val scoreCN = "factor"
     val scoreC = col(scoreCN)
 
+    val selelectedCols = "pmid" :: "pmcid" :: "type" :: "label" :: "labelN" :: "keywordId" :: scoreCN :: Nil
+
+    logger.info("ground and take rank 1 from the mapped ones")
     val w = Window.partitionBy($"type", $"labelN").orderBy(scoreC.desc)
     val mappedLabel = labels
       .join(luts, Seq("type", "labelN"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
       .filter($"isMapped" === true)
-    // .persist(StorageLevel.DISK_ONLY)
-
-    val persistedMappedLabels = mappedLabel
+      .select(selelectedCols.map(col): _*)
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
+
+    logger.info("disambiguate after grounding")
+    val persistedMappedLabels = mappedLabel
       .transform(disambiguate(_, "labelN", "keywordId"))
       .select("type", "label", "labelN", "keywordId")
       .dropDuplicates("type", "label", "keywordId")
-      .orderBy($"type", $"label")
 
     persistedMappedLabels
   }
@@ -214,6 +218,7 @@ object Grounding extends Serializable with LazyLogging {
       sparkSession: SparkSession): Map[String, DataFrame] = {
     import sparkSession.implicits._
 
+    logger.info("resolve matches and cooccurrences with the grounded and filtered labels")
     val baseCols = List(
       $"pmid",
       $"pmcid",
@@ -580,8 +585,17 @@ object Grounding extends Serializable with LazyLogging {
     val sampledDF = entities.transform(sampleEntities)
     val sentences = entities.transform(filterEntities)
     val mappedLabels =
-      mapEntities(sentences, luts, pipeline, pipelineColumns) // .persist(StorageLevel.MEMORY_ONLY)
-    val resolvedEntities = resolveEntities(sentences, mappedLabels)
+      mapEntities(sentences, luts, pipeline, pipelineColumns)
+
+    logger.info("producing grounding dataset")
+    Helpers.writeTo(
+      Map("mappedLabels" -> IOResource(mappedLabels, empcConfiguration.outputs.grounding)))
+
+    val aux = Helpers.readFrom(Map("mappedLabels" -> empcConfiguration.outputs.grounding))
+    val mappedDF = aux("mappedLabels").data.orderBy(col("type"), col("label"))
+
+    logger.info("resolve entities with the produced grounded labels")
+    val resolvedEntities = resolveEntities(sentences, mappedDF)
 
     resolvedEntities + ("samples" -> sampledDF)
   }

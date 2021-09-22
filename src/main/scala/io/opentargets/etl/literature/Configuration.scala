@@ -1,11 +1,12 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.config.ConfigFactory
-import pureconfig.ConfigReader.Result
 import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.spark.Helpers.IOResourceConfig
 import pureconfig.ConfigReader.Result
 import pureconfig._
+// do not remove it - Idea editor is not able to infer where it is needed but
+// it does
 import pureconfig.generic.auto._
 
 object Configuration extends LazyLogging {
@@ -17,7 +18,8 @@ object Configuration extends LazyLogging {
                     outputFormat: String,
                     publicationSectionRanks: Seq[PublicationSectionRank])
 
-  case class ProcessingOutput(rawEvidence: IOResourceConfig,
+  case class ProcessingOutput(grounding: IOResourceConfig,
+                              rawEvidence: IOResourceConfig,
                               cooccurrences: IOResourceConfig,
                               matches: IOResourceConfig,
                               literatureIndex: IOResourceConfig)
