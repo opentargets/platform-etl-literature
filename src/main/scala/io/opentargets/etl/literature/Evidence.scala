@@ -18,7 +18,7 @@ object Evidence extends Serializable with LazyLogging {
       StructField(name = "targetFromSourceId", dataType = StringType, nullable = false),
       StructField(name = "diseaseFromSourceMappedId", dataType = StringType, nullable = false),
       StructField(name = "resourceScore", dataType = DoubleType, nullable = false),
-      StructField(name = "sharedPublicationCount", dataType = DoubleType, nullable = false),
+      StructField(name = "sharedPublicationCount", dataType = IntegerType, nullable = false),
       StructField(name = "meanTargetFreqPerPub", dataType = DoubleType, nullable = false),
       StructField(name = "meanDiseaseFreqPerPub", dataType = DoubleType, nullable = false)
     )
@@ -77,7 +77,7 @@ object Evidence extends Serializable with LazyLogging {
         first($"diseaseV").as("diseaseV"),
         mean($"targetF").as("meanTargetFreqPerPub"),
         mean($"diseaseF").as("meanDiseaseFreqPerPub"),
-        count($"targetP").as("sharedPublicationCount")
+        count($"targetP").as("sharedPublicationCount").cast(IntegerType)
       )
       .withColumn("resourceScore", computeSimilarityScore($"targetV", $"diseaseV"))
       .filter($"resourceScore" > threshold.getOrElse(Double.MinPositiveValue))

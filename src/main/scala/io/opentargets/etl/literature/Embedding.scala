@@ -31,9 +31,6 @@ object Embedding extends Serializable with LazyLogging {
 
     val model = w2vModel.fit(df)
 
-    // Display frequent itemsets.
-    //model.getVectors.show(25, false)
-
     model
   }
 
