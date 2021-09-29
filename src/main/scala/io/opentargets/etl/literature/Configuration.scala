@@ -35,6 +35,11 @@ object Configuration extends LazyLogging {
 
   case class EmbeddingOutput(wordvec: IOResourceConfig, wordvecsyn: IOResourceConfig)
 
+  case class EvidenceInputs(model: String, matches: IOResourceConfig)
+  case class EvidenceSection(threshold: Option[Double],
+                             inputs: EvidenceInputs,
+                             output: IOResourceConfig)
+
   case class ModelConfiguration(windowSize: Int,
                                 numPartitions: Int,
                                 maxIter: Int,
@@ -55,7 +60,8 @@ object Configuration extends LazyLogging {
       common: Common,
       processing: ProcessingSection,
       embedding: EmbeddingSection,
-      vectors: VectorsSection
+      vectors: VectorsSection,
+      evidence: EvidenceSection
   )
 
   def load: ConfigReader.Result[OTConfig] = {
