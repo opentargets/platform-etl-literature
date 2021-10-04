@@ -89,7 +89,7 @@ object Evidence extends Serializable with LazyLogging {
         first($"diseaseV").as("diseaseV"),
         mean($"targetF").as("meanTargetFreqPerPub"),
         mean($"diseaseF").as("meanDiseaseFreqPerPub"),
-        count($"targetP").as("sharedPublicationCount").cast(IntegerType)
+        count($"targetP").as("sharedPublicationCount")
       )
       .withColumn("resourceScore", computeSimilarityScore($"targetV", $"diseaseV"))
       .filter($"resourceScore" > threshold.getOrElse(Double.MinPositiveValue))
@@ -103,17 +103,27 @@ object Evidence extends Serializable with LazyLogging {
   def apply()(implicit context: ETLSessionContext): Unit = {
     implicit val ss: SparkSession = context.sparkSession
 
-    logger.info("Generate vector table from W2V model")
     val configuration = context.configuration.evidence
 
     val imap = Map(
       "matches" -> configuration.input
     )
-    val matches = Helpers.readFrom(imap).apply("matches").data
-    val w2vModel = generateModel(matches)
-    val eset = generateEvidence(w2vModel, matches, configuration.threshold)
 
-    w2vModel.save(configuration.outputs.model.path)
+    val matches = Helpers.readFrom(imap).apply("matches").data
+
+    val w2vModel = configuration.skipModel.getOrElse(false) match {
+      case true =>
+        logger.info(s"Load w2v model from path ${configuration.outputs.model.path}")
+        Word2VecModel.load(configuration.outputs.model.path)
+      case false =>
+        logger.info(s"Generate w2v model and save to path ${configuration.outputs.model.path}")
+        val m = generateModel(matches)
+        m.save(configuration.outputs.model.path)
+        m
+    }
+
+    logger.info("Generate evidence set from w2v model")
+    val eset = generateEvidence(w2vModel, matches, configuration.threshold)
     val dataframesToSave = Map(
       "evidence" -> IOResource(eset, configuration.outputs.evidence)
     )
