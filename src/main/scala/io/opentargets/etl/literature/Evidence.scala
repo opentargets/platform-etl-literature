@@ -1,11 +1,14 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
+import io.opentargets.etl.literature.Embedding.transformMatches
 import io.opentargets.etl.literature.spark.Helpers
-import io.opentargets.etl.literature.spark.Helpers.IOResource
+import io.opentargets.etl.literature.spark.Helpers.{
+  IOResource,
+  computeSimilarityScore,
+  makeWord2VecModel
+}
 import org.apache.spark.ml.feature.Word2VecModel
-import org.apache.spark.ml.linalg.Vectors._
-import org.apache.spark.ml.linalg._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
@@ -24,16 +27,25 @@ object Evidence extends Serializable with LazyLogging {
     )
   )
 
-  private def computeSimilarityScore(col1: Column, col2: Column): Column = {
-    val cossim = udf((v1: Vector, v2: Vector) => {
-      val n1 = norm(v1, 2D)
-      val n2 = norm(v2, 2D)
-      val denom = n1 * n2
-      if (denom == 0.0) 0.0
-      else (v1 dot v2) / denom
-    })
+  def generateModel(matches: DataFrame)(
+      implicit etlSessionContext: ETLSessionContext): Word2VecModel = {
+    import etlSessionContext.sparkSession.implicits._
 
-    cossim(col1, col2)
+    val types = "DS" :: "GP" :: Nil
+    val modelConfiguration = etlSessionContext.configuration.evidence.modelConfiguration
+    val sectionImportances =
+      etlSessionContext.configuration.common.publicationSectionRanks
+    val sectionRankTable =
+      broadcast(
+        sectionImportances
+          .toDS()
+          .orderBy($"rank".asc))
+
+    val df = matches
+      .filter($"isMapped" === true and $"type".isInCollection(types))
+      .transform(transformMatches("terms" :: Nil, sectionRankTable))
+
+    makeWord2VecModel(df, modelConfiguration, inputColName = "terms", outputColName = "synonyms")
   }
 
   def generateEvidence(model: Word2VecModel, matches: DataFrame, threshold: Option[Double])(
@@ -95,14 +107,15 @@ object Evidence extends Serializable with LazyLogging {
     val configuration = context.configuration.evidence
 
     val imap = Map(
-      "matches" -> configuration.inputs.matches
+      "matches" -> configuration.input
     )
     val matches = Helpers.readFrom(imap).apply("matches").data
-    val model = Word2VecModel.load(configuration.inputs.model)
-    val eset = generateEvidence(model, matches, configuration.threshold)
+    val w2vModel = generateModel(matches)
+    val eset = generateEvidence(w2vModel, matches, configuration.threshold)
 
+    w2vModel.save(configuration.outputs.model.path)
     val dataframesToSave = Map(
-      "evidence" -> IOResource(eset, configuration.output)
+      "evidence" -> IOResource(eset, configuration.outputs.evidence)
     )
 
     Helpers.writeTo(dataframesToSave)

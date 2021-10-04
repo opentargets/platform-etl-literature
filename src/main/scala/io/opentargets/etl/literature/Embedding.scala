@@ -7,33 +7,10 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
 import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import io.opentargets.etl.literature.spark.Helpers
-import io.opentargets.etl.literature.spark.Helpers.IOResource
+import io.opentargets.etl.literature.spark.Helpers.{IOResource, makeWord2VecModel}
 import org.apache.spark.sql.expressions.Window
 
 object Embedding extends Serializable with LazyLogging {
-
-  private def makeWord2VecModel(
-      df: DataFrame,
-      modelConfiguration: ModelConfiguration,
-      inputColName: String,
-      outputColName: String = "prediction"
-  ): Word2VecModel = {
-    logger.info(s"compute Word2Vec model for input col ${inputColName} into ${outputColName}")
-
-    val w2vModel = new Word2Vec()
-      .setWindowSize(modelConfiguration.windowSize)
-      .setNumPartitions(modelConfiguration.numPartitions)
-      .setMaxIter(modelConfiguration.maxIter)
-      .setMinCount(modelConfiguration.minCount)
-      .setStepSize(modelConfiguration.stepSize)
-      .setInputCol(inputColName)
-      .setOutputCol(outputColName)
-
-    val model = w2vModel.fit(df)
-
-    model
-  }
-
   private def generateSynonyms(matchesModel: Word2VecModel, numSynonyms: Int)(
       implicit
       sparkSession: SparkSession) = {
@@ -84,7 +61,7 @@ object Embedding extends Serializable with LazyLogging {
     matchesModel
   }
 
-  private def transformMatches(
+  def transformMatches(
       selectCols: Seq[String],
       sectionRankingTable: Dataset[PublicationSectionRank])(df: DataFrame): DataFrame = {
 
@@ -104,7 +81,7 @@ object Embedding extends Serializable with LazyLogging {
       implicit sparkSession: SparkSession): Map[String, IOResource] = {
     import sparkSession.implicits._
 
-    val outputs = configuration.embedding.outputs
+    val output = configuration.embedding.output
     val modelConf = configuration.embedding.modelConfiguration
     val sectionImportances =
       configuration.common.publicationSectionRanks
@@ -122,18 +99,9 @@ object Embedding extends Serializable with LazyLogging {
 
     val matchesModels =
       generateWord2VecModel(groupedMatches, modelConf)
-    val matchesSynonyms =
-      generateSynonyms(matchesModels, configuration.embedding.numSynonyms)
 
     // The matchesModel is a W2VModel and the output is parquet.
-    matchesModels.save(outputs.wordvec.path)
-
-    // TODO FIX!
-//    logger.info(s"write synonyms computation")
-//    val dataframesToSave = Map(
-//      "word2vecSynonym" -> IOResource(matchesSynonyms, outputs.wordvecsyn)
-//    )
-//    Helpers.writeTo(dataframesToSave)
+    matchesModels.save(output.path)
 
     val dataframesToSave = Map.empty[String, IOResource]
     dataframesToSave

@@ -33,12 +33,11 @@ object Configuration extends LazyLogging {
       outputs: ProcessingOutput
   )
 
-  case class EmbeddingOutput(wordvec: IOResourceConfig, wordvecsyn: IOResourceConfig)
-
-  case class EvidenceInputs(model: String, matches: IOResourceConfig)
+  case class EvidenceOutputs(model: IOResourceConfig, evidence: IOResourceConfig)
   case class EvidenceSection(threshold: Option[Double],
-                             inputs: EvidenceInputs,
-                             output: IOResourceConfig)
+                             modelConfiguration: ModelConfiguration,
+                             input: IOResourceConfig,
+                             outputs: EvidenceOutputs)
 
   case class ModelConfiguration(windowSize: Int,
                                 numPartitions: Int,
@@ -50,7 +49,7 @@ object Configuration extends LazyLogging {
       modelConfiguration: ModelConfiguration,
       numSynonyms: Int,
       input: IOResourceConfig,
-      outputs: EmbeddingOutput
+      output: IOResourceConfig
   )
 
   case class VectorsSection(input: String, output: IOResourceConfig)

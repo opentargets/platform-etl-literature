@@ -1,8 +1,12 @@
 package io.opentargets.etl.literature.spark
 
 import com.typesafe.scalalogging.LazyLogging
-import io.opentargets.etl.literature.Configuration.OTConfig
+import io.opentargets.etl.literature.Configuration.{ModelConfiguration, OTConfig}
+import io.opentargets.etl.literature.Embedding.logger
 import org.apache.spark.SparkConf
+import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
+import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.ml.linalg.Vectors.norm
 import org.apache.spark.sql._
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions._
@@ -47,6 +51,40 @@ object Helpers extends LazyLogging {
     SparkSession.builder
       .config(conf)
       .getOrCreate
+  }
+
+  def makeWord2VecModel(
+      df: DataFrame,
+      modelConfiguration: ModelConfiguration,
+      inputColName: String,
+      outputColName: String = "prediction"
+  ): Word2VecModel = {
+    logger.info(s"compute Word2Vec model for input col ${inputColName} into ${outputColName}")
+
+    val w2vModel = new Word2Vec()
+      .setWindowSize(modelConfiguration.windowSize)
+      .setNumPartitions(modelConfiguration.numPartitions)
+      .setMaxIter(modelConfiguration.maxIter)
+      .setMinCount(modelConfiguration.minCount)
+      .setStepSize(modelConfiguration.stepSize)
+      .setInputCol(inputColName)
+      .setOutputCol(outputColName)
+
+    val model = w2vModel.fit(df)
+
+    model
+  }
+
+  def computeSimilarityScore(col1: Column, col2: Column): Column = {
+    val cossim = udf((v1: Vector, v2: Vector) => {
+      val n1 = norm(v1, 2D)
+      val n2 = norm(v2, 2D)
+      val denom = n1 * n2
+      if (denom == 0.0) 0.0
+      else (v1 dot v2) / denom
+    })
+
+    cossim(col1, col2)
   }
 
   def normalise(c: Column): Column = {
