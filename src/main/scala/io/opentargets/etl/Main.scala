@@ -19,6 +19,7 @@ object ETL extends LazyLogging {
         Processing()
         Embedding()
         Vectors()
+        Evidence()
       case "processing" =>
         logger.info("run step Analysis")
         Processing()
@@ -28,6 +29,9 @@ object ETL extends LazyLogging {
       case "vectors" =>
         logger.info("run step Vectors")
         Vectors()
+      case "evidence" =>
+        logger.info("run step evidence")
+        Evidence()
       case _ => logger.warn(s"step $step is unknown so nothing to execute")
     }
     logger.info(s"finished to run step ($step)")

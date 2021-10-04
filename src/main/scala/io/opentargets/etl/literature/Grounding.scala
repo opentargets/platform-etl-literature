@@ -6,10 +6,13 @@ import org.apache.spark.sql.functions._
 import io.opentargets.etl.literature.spark.Helpers
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.sql._
-import com.johnsnowlabs.nlp.{DocumentAssembler, Finisher, SparkNLP}
+import com.johnsnowlabs.nlp.{DocumentAssembler, Finisher}
 import com.johnsnowlabs.nlp.annotator._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.expressions.Window
+import org.apache.spark.storage.StorageLevel
+
+import scala.util.Random
 
 object Grounding extends Serializable with LazyLogging {
   // https://meta.wikimedia.org/wiki/Stop_word_list/google_stop_word_list#English
@@ -104,6 +107,37 @@ object Grounding extends Serializable with LazyLogging {
     pipeline
   }
 
+  //
+  private def disambiguate(df: DataFrame, keywordColumnName: String, labelCountsColumnName: String)(
+      implicit
+      sparkSession: SparkSession): DataFrame = {
+    // prefix is used to prefix each new temp column is created in here so no clash with
+    // any other already present
+    val prefix = Random.alphanumeric.take(6)
+    val minDistinctKeywordsPerLabelPerPubOverKeywordPerPub =
+      s"${prefix}_minDistinctKeywordsPerLabelPerPubOverKeywordPerPub"
+    val minDistinctKeywordsPerLabelOverKeywordOverallPubs =
+      s"${prefix}_minDistinctKeywordsPerLabelOverKeywordOverallPubs"
+
+    val keywordColumns = "type" :: keywordColumnName :: Nil
+    val windowPerKeyword = Window.partitionBy(keywordColumns.map(col): _*)
+
+    val keywordColumnsPerPub = "pmid" :: "pmcid" :: "type" :: keywordColumnName :: Nil
+    val windowPerKeywordPerPub = Window.partitionBy(keywordColumnsPerPub.map(col): _*)
+
+    df.withColumn(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub,
+                  min(col(labelCountsColumnName)).over(windowPerKeywordPerPub))
+      .withColumn(
+        minDistinctKeywordsPerLabelOverKeywordOverallPubs,
+        min(col(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub)).over(windowPerKeyword))
+      .filter(col(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub) <= col(
+        minDistinctKeywordsPerLabelOverKeywordOverallPubs))
+      .drop(
+        minDistinctKeywordsPerLabelOverKeywordOverallPubs,
+        minDistinctKeywordsPerLabelPerPubOverKeywordPerPub
+      )
+  }
+
   private def normaliseSentence(df: DataFrame,
                                 pipeline: Pipeline,
                                 columnNamePrefix: String,
@@ -130,9 +164,8 @@ object Grounding extends Serializable with LazyLogging {
 
     val labels = entities
       .withColumn("match", explode($"matches"))
-      .drop("matches")
       .selectExpr("*", "match.*")
-      .select("type", "label")
+      .drop("match", "matches")
       .withColumn("nLabel", Helpers.normalise($"label"))
       .withColumn(
         "textV",
@@ -152,18 +185,19 @@ object Grounding extends Serializable with LazyLogging {
     val scoreCN = "factor"
     val scoreC = col(scoreCN)
 
+    val labelCols = "type" :: "label" :: "labelN" :: "keywordId" :: Nil
+    val selelectedCols = (labelCols ++ luts.columns).toSet - scoreCN
+
+    logger.info("ground and take rank 1 from the mapped ones")
     val w = Window.partitionBy($"type", $"labelN").orderBy(scoreC.desc)
     val mappedLabel = labels
-      .select("type", "label", "labelN")
       .join(luts, Seq("type", "labelN"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
       .filter($"isMapped" === true)
       .withColumn("rank", dense_rank().over(w))
       .filter($"rank" === 1)
-      .select("type", "label", "labelN", "keywordId")
+      .select(selelectedCols.toList.map(col): _*)
       .dropDuplicates("type", "label", "keywordId")
-      .repartition($"type", $"label")
-      .orderBy($"type", $"label")
 
     mappedLabel
   }
@@ -173,6 +207,7 @@ object Grounding extends Serializable with LazyLogging {
       sparkSession: SparkSession): Map[String, DataFrame] = {
     import sparkSession.implicits._
 
+    logger.info("resolve matches and cooccurrences with the grounded and filtered labels")
     val baseCols = List(
       $"pmid",
       $"pmcid",
@@ -187,7 +222,7 @@ object Grounding extends Serializable with LazyLogging {
       $"trace_source"
     )
 
-    val matchesCols = baseCols ::: $"labelN" :: $"match" :: Nil
+    val matchesCols = baseCols :+ $"match"
 
     val mergedMatches = entities
       .withColumn("match", explode($"matches"))
@@ -196,11 +231,13 @@ object Grounding extends Serializable with LazyLogging {
       .drop("match")
       .join(mappedLabels, Seq("type", "label"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
+      .transform(disambiguate(_, "keywordId", "uniqueKeywordIdsPerLabelN"))
       .withColumn(
         "match",
         struct(
           $"endInSentence",
           $"label",
+          $"labelN",
           $"sectionEnd",
           $"sectionStart",
           $"startInSentence",
@@ -220,11 +257,15 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("type2", substring_index($"type", "-", -1))
       .drop("type")
       .join(mappedLabels, $"type1" === $"type" and $"label1" === $"label", "left_outer")
+      .transform(disambiguate(_, "keywordId", "uniqueKeywordIdsPerLabelN"))
       .withColumnRenamed("keywordId", "keywordId1")
-      .drop("type", "label")
+      .withColumnRenamed("labelN", "labelN1")
+      .drop("type", "label", "uniqueKeywordIdsPerLabelN")
       .join(mappedLabels, $"type2" === $"type" and $"label2" === $"label", "left_outer")
+      .transform(disambiguate(_, "keywordId", "uniqueKeywordIdsPerLabelN"))
       .withColumnRenamed("keywordId", "keywordId2")
-      .drop("type", "label")
+      .withColumnRenamed("labelN", "labelN2")
+      .drop("type", "label", "uniqueKeywordIdsPerLabelN")
       .withColumn("isMapped", $"keywordId1".isNotNull and $"keywordId2".isNotNull)
       .withColumn(
         "co-occurrence",
@@ -234,8 +275,10 @@ object Grounding extends Serializable with LazyLogging {
           $"end2",
           $"sent_evidence_score".as("evidence_score"),
           $"label1",
+          $"labelN1",
           $"keywordId1",
           $"label2",
+          $"labelN2",
           $"keywordId2",
           $"relation",
           $"start1",
@@ -464,8 +507,6 @@ object Grounding extends Serializable with LazyLogging {
       drugs: DataFrame,
       pipeline: Pipeline,
       pipelineColumns: List[String])(implicit sparkSession: SparkSession): DataFrame = {
-    import sparkSession.implicits._
-
     val cols = List(
       "key as labelN",
       "type",
@@ -485,11 +526,14 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("type", lit("CD"))
       .selectExpr(cols: _*)
 
+    val w = Window.partitionBy(col("type"), col("labelN"))
     val lut = D
       .unionByName(T)
       .unionByName(DR)
       .distinct()
-      .orderBy($"type", $"labelN")
+      .withColumn("uniqueKeywordIdsPerLabelN",
+                  approx_count_distinct(col("keywordId"), 0.01).over(w))
+      .orderBy(col("type"), col("labelN"))
 
     lut
   }
@@ -538,9 +582,21 @@ object Grounding extends Serializable with LazyLogging {
 
     val sampledDF = entities.transform(sampleEntities)
     val sentences = entities.transform(filterEntities)
-    val mappedLabels = mapEntities(sentences, luts, pipeline, pipelineColumns).cache()
+
+    logger.info("producing grounding dataset")
+    val mappedLabels =
+      mapEntities(sentences, luts, pipeline, pipelineColumns)
+        .persist(StorageLevel.DISK_ONLY)
+        .orderBy(col("type"), col("label"))
+
+    logger.info("resolve entities with the produced grounded labels")
     val resolvedEntities = resolveEntities(sentences, mappedLabels)
 
-    resolvedEntities + ("samples" -> sampledDF)
+    val extraOutputs = Map(
+      "mappedLabels" -> mappedLabels,
+      "samples" -> sampledDF
+    )
+
+    resolvedEntities ++ extraOutputs
   }
 }
