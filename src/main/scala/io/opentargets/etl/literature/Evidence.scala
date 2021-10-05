@@ -48,15 +48,16 @@ object Evidence extends Serializable with LazyLogging {
           .toDS()
           .orderBy($"rank".asc))
 
-    val wByFreq = Window.partitionBy("pmid", "section", "keywordId")
-    val w = Window.partitionBy("pmid", "rank").orderBy($"f".desc)
+    val partitionColumns = "pmid" :: "rank" :: Nil
+    val wByFreq = Window.partitionBy((partitionColumns :+ "keywordId").map(col): _*)
+    val w = Window.partitionBy(partitionColumns.map(col): _*).orderBy($"f".desc)
 
     df.join(sectionRankTable, Seq("section"), "left_outer")
       .na
       .fill(100, "rank" :: Nil)
       .withColumn("f", count(lit(1)).over(wByFreq))
-      .dropDuplicates("pmid", "section", "keywordId")
       .withColumn("terms", collect_list(col("keywordId")).over(w))
+      .dropDuplicates(partitionColumns.head, partitionColumns.tail: _*)
       .selectExpr(selectCols: _*)
   }
 
