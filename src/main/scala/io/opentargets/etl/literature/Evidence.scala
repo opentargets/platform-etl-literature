@@ -48,16 +48,20 @@ object Evidence extends Serializable with LazyLogging {
           .toDS()
           .orderBy($"rank".asc))
 
-    val partitionColumns = "pmid" :: "rank" :: Nil
-    val wByFreq = Window.partitionBy((partitionColumns :+ "keywordId").map(col): _*)
-    val w = Window.partitionBy(partitionColumns.map(col): _*).orderBy($"f".desc)
+    val partitionPerSection = "pmid" :: "rank" :: Nil
+    val partitionPerSentence = "pmid" :: "rank" :: "sentenceId" :: Nil
+    val wPerSentence = Window.partitionBy(partitionPerSentence.map(col): _*)
+    val wPerSection = Window.partitionBy(partitionPerSection.map(col): _*).orderBy($"f".desc)
 
     df.join(sectionRankTable, Seq("section"), "left_outer")
       .na
       .fill(100, "rank" :: Nil)
-      .withColumn("f", count(lit(1)).over(wByFreq))
-      .withColumn("terms", collect_list(col("keywordId")).over(w))
-      .dropDuplicates(partitionColumns.head, partitionColumns.tail: _*)
+      .withColumn("sentenceId", sha1($"text"))
+      .withColumn("f", approx_count_distinct($"keywordId").over(wPerSentence))
+      .withColumn("keysPerSentence",
+                  collect_list($"keywordId").over(wPerSentence.orderBy($"startInSentence")))
+      .withColumn("terms", flatten(collect_list(col("keysPerSentence")).over(wPerSection)))
+      .dropDuplicates(partitionPerSection.head, partitionPerSection.tail: _*)
       .selectExpr(selectCols: _*)
   }
 
