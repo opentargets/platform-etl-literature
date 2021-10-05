@@ -1,7 +1,6 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
-import io.opentargets.etl.literature.Embedding.transformMatches
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.{
   IOResource,
@@ -11,6 +10,7 @@ import io.opentargets.etl.literature.spark.Helpers.{
 import org.apache.spark.ml.feature.Word2VecModel
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.types._
 
 object Evidence extends Serializable with LazyLogging {
@@ -27,12 +27,19 @@ object Evidence extends Serializable with LazyLogging {
     )
   )
 
-  def generateModel(matches: DataFrame)(
-      implicit etlSessionContext: ETLSessionContext): Word2VecModel = {
+  private def filterMatches(matches: DataFrame)(
+      implicit etlSessionContext: ETLSessionContext): DataFrame = {
     import etlSessionContext.sparkSession.implicits._
 
-    val types = "DS" :: "GP" :: Nil
-    val modelConfiguration = etlSessionContext.configuration.evidence.modelConfiguration
+    val types = "DS" :: "GP" :: "CD" :: Nil
+    matches
+      .filter($"isMapped" === true and $"type".isInCollection(types))
+  }
+
+  private def regroupMatches(selectCols: Seq[String])(df: DataFrame)(
+      implicit etlSessionContext: ETLSessionContext): DataFrame = {
+    import etlSessionContext.sparkSession.implicits._
+
     val sectionImportances =
       etlSessionContext.configuration.common.publicationSectionRanks
     val sectionRankTable =
@@ -41,9 +48,24 @@ object Evidence extends Serializable with LazyLogging {
           .toDS()
           .orderBy($"rank".asc))
 
+    val wByFreq = Window.partitionBy("pmid", "section", "keywordId")
+    val w = Window.partitionBy("pmid", "section").orderBy($"rank".asc, $"f".desc)
+
+    df.join(sectionRankTable, Seq("section"), "left_outer")
+      .na
+      .fill(100, "rank" :: Nil)
+      .withColumn("f", count(lit(1)).over(wByFreq))
+      .dropDuplicates("pmid", "section", "keywordId")
+      .withColumn("terms", collect_list(col("keywordId")).over(w))
+      .selectExpr(selectCols: _*)
+  }
+
+  def generateModel(matches: DataFrame)(
+      implicit etlSessionContext: ETLSessionContext): Word2VecModel = {
+    val modelConfiguration = etlSessionContext.configuration.evidence.modelConfiguration
     val df = matches
-      .filter($"isMapped" === true and $"type".isInCollection(types))
-      .transform(transformMatches("terms" :: Nil, sectionRankTable))
+      .transform(filterMatches)
+      .transform(regroupMatches("terms" :: Nil))
 
     makeWord2VecModel(df, modelConfiguration, inputColName = "terms", outputColName = "synonyms")
   }
