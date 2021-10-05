@@ -182,8 +182,8 @@ object Processing extends Serializable with LazyLogging {
     }
 
     val samples = grounding("samples")
-    val failedMatches = filterMatches(grounding("matches"), isMapped = false)
-    val failedCoocs = filterCooccurrences(grounding("cooccurrences"), isMapped = false)
+    val failedMatches = grounding("matchesFailed")
+    val failedCoocs = grounding("cooccurrencesFailed")
 
     logger.info("Processing matches calculate done")
     val matches = filterMatches(grounding("matches"), isMapped = true)

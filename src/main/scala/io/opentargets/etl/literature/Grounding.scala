@@ -108,7 +108,10 @@ object Grounding extends Serializable with LazyLogging {
   }
 
   //
-  private def disambiguate(df: DataFrame, keywordColumnName: String, labelCountsColumnName: String)(
+  private def disambiguate(df: DataFrame,
+                           keywordColumnName: String,
+                           labelCountsColumnName: String,
+                           typeColumnName: String = "type")(
       implicit
       sparkSession: SparkSession): DataFrame = {
     // prefix is used to prefix each new temp column is created in here so no clash with
@@ -119,10 +122,10 @@ object Grounding extends Serializable with LazyLogging {
     val minDistinctKeywordsPerLabelOverKeywordOverallPubs =
       s"${prefix}_minDistinctKeywordsPerLabelOverKeywordOverallPubs"
 
-    val keywordColumns = "type" :: keywordColumnName :: Nil
+    val keywordColumns = typeColumnName :: keywordColumnName :: Nil
     val windowPerKeyword = Window.partitionBy(keywordColumns.map(col): _*)
 
-    val keywordColumnsPerPub = "pmid" :: "pmcid" :: "type" :: keywordColumnName :: Nil
+    val keywordColumnsPerPub = "pmid" :: "pmcid" :: typeColumnName :: keywordColumnName :: Nil
     val windowPerKeywordPerPub = Window.partitionBy(keywordColumnsPerPub.map(col): _*)
 
     df.withColumn(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub,
@@ -231,22 +234,26 @@ object Grounding extends Serializable with LazyLogging {
       .drop("match")
       .join(mappedLabels, Seq("type", "label"), "left_outer")
       .withColumn("isMapped", $"keywordId".isNotNull)
-      .transform(disambiguate(_, "keywordId", "uniqueKeywordIdsPerLabelN"))
-      .withColumn(
-        "match",
-        struct(
-          $"endInSentence",
-          $"label",
-          $"labelN",
-          $"sectionEnd",
-          $"sectionStart",
-          $"startInSentence",
-          $"type",
-          $"keywordId",
-          $"isMapped"
+
+    val validMatches =
+      mergedMatches
+        .filter($"isMapped" === true)
+        .transform(disambiguate(_, "keywordId", "uniqueKeywordIdsPerLabelN"))
+        .withColumn(
+          "match",
+          struct(
+            $"endInSentence",
+            $"label",
+            $"labelN",
+            $"sectionEnd",
+            $"sectionStart",
+            $"startInSentence",
+            $"type",
+            $"keywordId",
+            $"isMapped"
+          )
         )
-      )
-      .select(matchesCols: _*)
+        .select(matchesCols: _*)
 
     val mergedCooc = entities
       .withColumn("cooc", explode($"co-occurrence"))
@@ -257,16 +264,23 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("type2", substring_index($"type", "-", -1))
       .drop("type")
       .join(mappedLabels, $"type1" === $"type" and $"label1" === $"label", "left_outer")
-      .transform(disambiguate(_, "keywordId", "uniqueKeywordIdsPerLabelN"))
       .withColumnRenamed("keywordId", "keywordId1")
       .withColumnRenamed("labelN", "labelN1")
-      .drop("type", "label", "uniqueKeywordIdsPerLabelN")
+      .withColumnRenamed("type", "type1")
+      .withColumnRenamed("uniqueKeywordIdsPerLabelN", "uniqueKeywordIdsPerLabelN1")
+      .drop("label")
       .join(mappedLabels, $"type2" === $"type" and $"label2" === $"label", "left_outer")
-      .transform(disambiguate(_, "keywordId", "uniqueKeywordIdsPerLabelN"))
       .withColumnRenamed("keywordId", "keywordId2")
       .withColumnRenamed("labelN", "labelN2")
-      .drop("type", "label", "uniqueKeywordIdsPerLabelN")
+      .withColumnRenamed("type", "type2")
+      .withColumnRenamed("uniqueKeywordIdsPerLabelN", "uniqueKeywordIdsPerLabelN2")
+      .drop("label")
       .withColumn("isMapped", $"keywordId1".isNotNull and $"keywordId2".isNotNull)
+
+    val validCooc = mergedCooc
+      .filter($"isMapped" === true)
+      .transform(disambiguate(_, "keywordId1", "uniqueKeywordIdsPerLabelN1", "type1"))
+      .transform(disambiguate(_, "keywordId2", "uniqueKeywordIdsPerLabelN2", "type2"))
       .withColumn(
         "co-occurrence",
         struct(
@@ -292,8 +306,10 @@ object Grounding extends Serializable with LazyLogging {
       .select(baseCols :+ $"co-occurrence": _*)
 
     Map(
-      "matches" -> mergedMatches,
-      "cooccurrences" -> mergedCooc
+      "matchesFailed" -> mergedMatches.filter($"isMapped" === false),
+      "matches" -> validMatches,
+      "cooccurrencesFailed" -> mergedCooc.filter($"isMapped" === false),
+      "cooccurrences" -> validCooc
     )
   }
 

@@ -41,7 +41,7 @@ object Evidence extends Serializable with LazyLogging {
     import etlSessionContext.sparkSession.implicits._
 
     val sectionImportances =
-      etlSessionContext.configuration.common.publicationSectionRanks
+      etlSessionContext.configuration.evidence.publicationSectionRanks
     val sectionRankTable =
       broadcast(
         sectionImportances
@@ -49,7 +49,7 @@ object Evidence extends Serializable with LazyLogging {
           .orderBy($"rank".asc))
 
     val wByFreq = Window.partitionBy("pmid", "section", "keywordId")
-    val w = Window.partitionBy("pmid", "section").orderBy($"rank".asc, $"f".desc)
+    val w = Window.partitionBy("pmid", "rank").orderBy($"f".desc)
 
     df.join(sectionRankTable, Seq("section"), "left_outer")
       .na

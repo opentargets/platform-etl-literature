@@ -34,7 +34,8 @@ object Configuration extends LazyLogging {
   )
 
   case class EvidenceOutputs(model: IOResourceConfig, evidence: IOResourceConfig)
-  case class EvidenceSection(threshold: Option[Double],
+  case class EvidenceSection(publicationSectionRanks: Seq[PublicationSectionRank],
+                             threshold: Option[Double],
                              skipModel: Option[Boolean],
                              modelConfiguration: ModelConfiguration,
                              input: IOResourceConfig,
