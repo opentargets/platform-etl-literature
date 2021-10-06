@@ -4,8 +4,10 @@ import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.{
   IOResource,
+  IOResourceConfig,
   computeSimilarityScore,
-  makeWord2VecModel
+  makeWord2VecModel,
+  writeTo
 }
 import org.apache.spark.ml.feature.Word2VecModel
 import org.apache.spark.sql.functions._
@@ -53,16 +55,31 @@ object Evidence extends Serializable with LazyLogging {
     val wPerSentence = Window.partitionBy(partitionPerSentence.map(col): _*)
     val wPerSection = Window.partitionBy(partitionPerSection.map(col): _*).orderBy($"f".desc)
 
-    df.join(sectionRankTable, Seq("section"), "left_outer")
-      .na
-      .fill(100, "rank" :: Nil)
+    val trDS = df
+      .join(sectionRankTable, Seq("section"))
       .withColumn("sentenceId", sha1($"text"))
       .withColumn("f", approx_count_distinct($"keywordId").over(wPerSentence))
       .withColumn("keysPerSentence",
-                  collect_list($"keywordId").over(wPerSentence.orderBy($"startInSentence")))
-      .withColumn("terms", flatten(collect_list(col("keysPerSentence")).over(wPerSection)))
+                  collect_set($"keywordId").over(wPerSentence.orderBy($"startInSentence")))
+      .withColumn("terms",
+                  array_distinct(flatten(collect_list(col("keysPerSentence")).over(wPerSection))))
       .dropDuplicates(partitionPerSection.head, partitionPerSection.tail: _*)
       .selectExpr(selectCols: _*)
+      .persist()
+
+    logger.info("saving training dataset - it should be removed in the future for production")
+    writeTo(
+      Map(
+        "trainingSet" -> IOResource(
+          trDS,
+          IOResourceConfig(format = etlSessionContext.configuration.common.outputFormat,
+                           path = etlSessionContext.configuration.common.output + "/trainingSet")
+        )
+      )
+    )(etlSessionContext.sparkSession)
+
+    trDS
+
   }
 
   def generateModel(matches: DataFrame)(
@@ -70,7 +87,7 @@ object Evidence extends Serializable with LazyLogging {
     val modelConfiguration = etlSessionContext.configuration.evidence.modelConfiguration
     val df = matches
       .transform(filterMatches)
-      .transform(regroupMatches("terms" :: Nil))
+      .transform(regroupMatches("pmid" :: "terms" :: Nil))
 
     makeWord2VecModel(df, modelConfiguration, inputColName = "terms", outputColName = "synonyms")
   }
