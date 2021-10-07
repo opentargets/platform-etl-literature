@@ -4,8 +4,8 @@ import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.spark.Helpers
 import io.opentargets.etl.literature.spark.Helpers.{
   IOResource,
-  IOResourceConfig,
   computeSimilarityScore,
+  harmonicFn,
   makeWord2VecModel,
   writeTo
 }
@@ -23,6 +23,7 @@ object Evidence extends Serializable with LazyLogging {
       StructField(name = "targetFromSourceId", dataType = StringType, nullable = false),
       StructField(name = "diseaseFromSourceMappedId", dataType = StringType, nullable = false),
       StructField(name = "resourceScore", dataType = DoubleType, nullable = false),
+      StructField(name = "rawResourceScore", dataType = DoubleType, nullable = false),
       StructField(name = "sharedPublicationCount", dataType = IntegerType, nullable = false),
       StructField(name = "meanTargetFreqPerPub", dataType = DoubleType, nullable = false),
       StructField(name = "meanDiseaseFreqPerPub", dataType = DoubleType, nullable = false)
@@ -132,8 +133,10 @@ object Evidence extends Serializable with LazyLogging {
         mean($"diseaseF").as("meanDiseaseFreqPerPub"),
         count($"targetP").as("sharedPublicationCount")
       )
-      .withColumn("resourceScore", computeSimilarityScore($"targetV", $"diseaseV"))
-      .filter($"resourceScore" > threshold.getOrElse(Double.MinPositiveValue))
+      .withColumn("rawResourceScore", computeSimilarityScore($"targetV", $"diseaseV"))
+      .filter($"rawResourceScore" > threshold.getOrElse(Double.MinPositiveValue))
+      .withColumn("resourceScore",
+                  harmonicFn(array_repeat($"rawResourceScore", $"sharedPublicationCount")))
       .withColumn("datasourceId", lit("ew2v"))
       .withColumn("datatypeId", lit("literature"))
       .select(schema.fieldNames.map(col): _*)
