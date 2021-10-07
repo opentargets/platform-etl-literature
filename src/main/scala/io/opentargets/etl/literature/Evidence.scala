@@ -51,19 +51,17 @@ object Evidence extends Serializable with LazyLogging {
           .orderBy($"rank".asc))
 
     val partitionPerSection = "pmid" :: "rank" :: Nil
-    val partitionPerSentence = "pmid" :: "rank" :: "sentenceId" :: Nil
-    val wPerSentence = Window.partitionBy(partitionPerSentence.map(col): _*)
-    val wPerSection = Window.partitionBy(partitionPerSection.map(col): _*).orderBy($"f".desc)
+    val wPerSection = Window.partitionBy(partitionPerSection.map(col): _*)
 
     val trDS = df
       .join(sectionRankTable, Seq("section"))
-      .withColumn("sentenceId", sha1($"text"))
-      .withColumn("f", approx_count_distinct($"keywordId").over(wPerSentence))
-      .withColumn("keysPerSentence",
-                  collect_set($"keywordId").over(wPerSentence.orderBy($"startInSentence")))
-      .withColumn("terms",
-                  array_distinct(flatten(collect_list(col("keysPerSentence")).over(wPerSection))))
+      .withColumn("terms", collect_set($"keywordId").over(wPerSection))
       .dropDuplicates(partitionPerSection.head, partitionPerSection.tail: _*)
+      .groupBy($"pmid")
+      .agg(collect_list($"rank").as("ranks"))
+      .withColumn("overall", flatten($"ranks"))
+      .withColumn("all", concat($"ranks", array($"overall")))
+      .withColumn("terms", explode($"all"))
       .selectExpr(selectCols: _*)
       .persist()
 
