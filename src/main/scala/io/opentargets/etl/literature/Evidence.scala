@@ -56,12 +56,12 @@ object Evidence extends Serializable with LazyLogging {
 
     val trDS = df
       .join(sectionRankTable, Seq("section"))
-      .withColumn("terms", collect_set($"keywordId").over(wPerSection))
+      .withColumn("keys", collect_set($"keywordId").over(wPerSection))
       .dropDuplicates(partitionPerSection.head, partitionPerSection.tail: _*)
       .groupBy($"pmid")
-      .agg(collect_list($"rank").as("ranks"))
+      .agg(collect_list($"keys").as("keys"))
       .withColumn("overall", flatten($"ranks"))
-      .withColumn("all", concat($"ranks", array($"overall")))
+      .withColumn("all", concat($"keys", array($"overall")))
       .withColumn("terms", explode($"all"))
       .selectExpr(selectCols: _*)
       .persist()
@@ -71,7 +71,7 @@ object Evidence extends Serializable with LazyLogging {
       Map(
         "trainingSet" -> IOResource(
           trDS,
-          etlSessionContext.configuration.evidence.outputs.evidenceTrainingSet
+          etlSessionContext.configuration.evidence.outputs.trainingSet
         )
       )
     )(etlSessionContext.sparkSession)
