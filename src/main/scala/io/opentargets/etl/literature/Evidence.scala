@@ -67,13 +67,12 @@ object Evidence extends Serializable with LazyLogging {
       .selectExpr(selectCols: _*)
       .persist()
 
-    logger.info("saving training dataset - it should be removed in the future for production")
+    logger.info("saving training dataset")
     writeTo(
       Map(
         "trainingSet" -> IOResource(
           trDS,
-          IOResourceConfig(format = etlSessionContext.configuration.common.outputFormat,
-                           path = etlSessionContext.configuration.common.output + "/trainingSet")
+          etlSessionContext.configuration.evidence.outputs.evidenceTrainingSet
         )
       )
     )(etlSessionContext.sparkSession)
