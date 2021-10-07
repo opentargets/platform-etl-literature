@@ -60,7 +60,7 @@ object Evidence extends Serializable with LazyLogging {
       .dropDuplicates(partitionPerSection.head, partitionPerSection.tail: _*)
       .groupBy($"pmid")
       .agg(collect_list($"keys").as("keys"))
-      .withColumn("overall", flatten($"ranks"))
+      .withColumn("overall", flatten($"keys"))
       .withColumn("all", concat($"keys", array($"overall")))
       .withColumn("terms", explode($"all"))
       .selectExpr(selectCols: _*)
