@@ -135,6 +135,7 @@ object Evidence extends Serializable with LazyLogging {
       )
       .withColumn("rawResourceScore", computeSimilarityScore($"targetV", $"diseaseV"))
       .filter($"rawResourceScore" > threshold.getOrElse(Double.MinPositiveValue))
+      .withColumn("sharedPublicationCount", $"sharedPublicationCount".cast(IntegerType))
       .withColumn("resourceScore",
                   harmonicFn(array_repeat($"rawResourceScore", $"sharedPublicationCount")))
       .withColumn("datasourceId", lit("ew2v"))
