@@ -2,17 +2,10 @@ package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.spark.Helpers
-import io.opentargets.etl.literature.spark.Helpers.{
-  IOResource,
-  computeSimilarityScore,
-  harmonicFn,
-  makeWord2VecModel,
-  writeTo
-}
+import io.opentargets.etl.literature.spark.Helpers.{IOResource, computeSimilarityScore, harmonicFn}
 import org.apache.spark.ml.feature.Word2VecModel
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
-import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.types._
 
 object Evidence extends Serializable with LazyLogging {

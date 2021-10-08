@@ -27,7 +27,7 @@ object Embedding extends Serializable with LazyLogging {
 
     logger.info("prepare matches regrouping the entities by ranked section")
     val sectionImportances =
-      etlSessionContext.configuration.evidence.publicationSectionRanks
+      etlSessionContext.configuration.common.publicationSectionRanks
     val sectionRankTable =
       broadcast(
         sectionImportances
@@ -54,7 +54,7 @@ object Embedding extends Serializable with LazyLogging {
       Map(
         "trainingSet" -> IOResource(
           trDS,
-          etlSessionContext.configuration.embedding.output.trainingSet
+          etlSessionContext.configuration.embedding.outputs.trainingSet
         )
       )
     )(etlSessionContext.sparkSession)
@@ -65,7 +65,7 @@ object Embedding extends Serializable with LazyLogging {
 
   def generateModel(matches: DataFrame)(
       implicit etlSessionContext: ETLSessionContext): Word2VecModel = {
-    val modelConfiguration = etlSessionContext.configuration.evidence.modelConfiguration
+    val modelConfiguration = etlSessionContext.configuration.embedding.modelConfiguration
     val df = matches
       .transform(filterMatches)
       .transform(regroupMatches("pmid" :: "terms" :: Nil))
@@ -77,7 +77,7 @@ object Embedding extends Serializable with LazyLogging {
   def compute(matches: DataFrame, configuration: Configuration.OTConfig)(
       implicit etlSessionContext: ETLSessionContext): Map[String, IOResource] = {
 
-    val output = configuration.embedding.output
+    val output = configuration.embedding.outputs.model
     val modelConf = configuration.embedding.modelConfiguration
 
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
