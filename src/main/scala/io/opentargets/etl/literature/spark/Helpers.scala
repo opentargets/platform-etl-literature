@@ -58,7 +58,7 @@ object Helpers extends LazyLogging {
       inputColName: String,
       outputColName: String = "prediction"
   ): Word2VecModel = {
-    logger.info(s"compute Word2Vec model for input col ${inputColName} into ${outputColName}")
+    logger.info(s"compute Word2Vec model for input col $inputColName into $outputColName")
 
     val w2vModel = new Word2Vec()
       .setWindowSize(modelConfiguration.windowSize)
@@ -194,7 +194,7 @@ object Helpers extends LazyLogging {
   }
 
   /** Helper function to write multiple outputs
-    * @param IOResources map of String and relative IOResourceg
+    * @param outputs map of String and relative IOResourceg
     * @return outputs itself.
     */
   def writeTo(outputs: IOResources)(implicit session: SparkSession): IOResources = {
