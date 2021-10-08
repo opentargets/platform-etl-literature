@@ -2,7 +2,6 @@ package io.opentargets.etl.literature.spark
 
 import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.Configuration.{ModelConfiguration, OTConfig}
-import io.opentargets.etl.literature.Embedding.logger
 import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import org.apache.spark.ml.linalg.Vector

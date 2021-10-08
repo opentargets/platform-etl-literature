@@ -30,74 +30,26 @@ object Evidence extends Serializable with LazyLogging {
     )
   )
 
-  private def filterMatches(matches: DataFrame)(
-      implicit etlSessionContext: ETLSessionContext): DataFrame = {
-    import etlSessionContext.sparkSession.implicits._
-
-    val types = "DS" :: "GP" :: "CD" :: Nil
-    matches
-      .filter($"isMapped" === true and $"type".isInCollection(types))
-  }
-
-  private def regroupMatches(selectCols: Seq[String])(df: DataFrame)(
-      implicit etlSessionContext: ETLSessionContext): DataFrame = {
+  def generateEvidence(
+      model: Word2VecModel,
+      matches: DataFrame,
+      coocs: DataFrame,
+      threshold: Option[Double])(implicit etlSessionContext: ETLSessionContext): DataFrame = {
     import etlSessionContext.sparkSession.implicits._
 
     val sectionImportances =
-      etlSessionContext.configuration.evidence.publicationSectionRanks
+      etlSessionContext.configuration.common.publicationSectionRanks
     val sectionRankTable =
       broadcast(
         sectionImportances
           .toDS()
           .orderBy($"rank".asc))
 
-    val partitionPerSection = "pmid" :: "rank" :: Nil
-    val wPerSection = Window.partitionBy(partitionPerSection.map(col): _*)
-
-    val trDS = df
-      .join(sectionRankTable, Seq("section"))
-      .withColumn("keys", collect_set($"keywordId").over(wPerSection))
-      .dropDuplicates(partitionPerSection.head, partitionPerSection.tail: _*)
-      .groupBy($"pmid")
-      .agg(collect_list($"keys").as("keys"))
-      .withColumn("overall", flatten($"keys"))
-      .withColumn("all", concat($"keys", array($"overall")))
-      .withColumn("terms", explode($"all"))
-      .selectExpr(selectCols: _*)
-      .persist()
-
-    logger.info("saving training dataset")
-    writeTo(
-      Map(
-        "trainingSet" -> IOResource(
-          trDS,
-          etlSessionContext.configuration.evidence.outputs.trainingSet
-        )
-      )
-    )(etlSessionContext.sparkSession)
-
-    trDS
-
-  }
-
-  def generateModel(matches: DataFrame)(
-      implicit etlSessionContext: ETLSessionContext): Word2VecModel = {
-    val modelConfiguration = etlSessionContext.configuration.evidence.modelConfiguration
-    val df = matches
-      .transform(filterMatches)
-      .transform(regroupMatches("pmid" :: "terms" :: Nil))
-
-    makeWord2VecModel(df, modelConfiguration, inputColName = "terms", outputColName = "synonyms")
-  }
-
-  def generateEvidence(model: Word2VecModel, matches: DataFrame, threshold: Option[Double])(
-      implicit sparkSession: SparkSession): DataFrame = {
-    import sparkSession.implicits._
-
     val gcols = List("pmid", "type", "keywordId")
     logger.info("filter diseases from the matches")
     val mWithV = matches
       .filter($"isMapped" === true)
+      .join(sectionRankTable, Seq("section"))
       .groupBy(gcols.map(col): _*)
       .agg(count($"pmid").as("f"))
       .join(model.getVectors, $"word" === $"keywordId")
@@ -151,26 +103,20 @@ object Evidence extends Serializable with LazyLogging {
     val configuration = context.configuration.evidence
 
     val imap = Map(
-      "matches" -> configuration.input
+      "matches" -> configuration.inputs.matches,
+      "coocs" -> configuration.inputs.cooccurrences
     )
 
     val matches = Helpers.readFrom(imap).apply("matches").data
+    val coocs = Helpers.readFrom(imap).apply("coocs").data
 
-    val w2vModel = configuration.skipModel.getOrElse(false) match {
-      case true =>
-        logger.info(s"Load w2v model from path ${configuration.outputs.model.path}")
-        Word2VecModel.load(configuration.outputs.model.path)
-      case false =>
-        logger.info(s"Generate w2v model and save to path ${configuration.outputs.model.path}")
-        val m = generateModel(matches)
-        m.save(configuration.outputs.model.path)
-        m
-    }
+    logger.info(s"Load w2v model from path ${configuration.inputs.model.path}")
+    val m = Word2VecModel.load(configuration.inputs.model.path)
 
     logger.info("Generate evidence set from w2v model")
-    val eset = generateEvidence(w2vModel, matches, configuration.threshold)
+    val eset = generateEvidence(m, matches, coocs, configuration.threshold)
     val dataframesToSave = Map(
-      "evidence" -> IOResource(eset, configuration.outputs.evidence)
+      "evidence" -> IOResource(eset, configuration.output)
     )
 
     Helpers.writeTo(dataframesToSave)

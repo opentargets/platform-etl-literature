@@ -33,15 +33,13 @@ object Configuration extends LazyLogging {
       outputs: ProcessingOutput
   )
 
-  case class EvidenceOutputs(model: IOResourceConfig,
-                             evidence: IOResourceConfig,
-                             trainingSet: IOResourceConfig)
-  case class EvidenceSection(publicationSectionRanks: Seq[PublicationSectionRank],
-                             threshold: Option[Double],
-                             skipModel: Option[Boolean],
-                             modelConfiguration: ModelConfiguration,
-                             input: IOResourceConfig,
-                             outputs: EvidenceOutputs)
+  case class EvidenceSectionInputs(matches: IOResourceConfig,
+                                   cooccurrences: IOResourceConfig,
+                                   model: IOResourceConfig)
+
+  case class EvidenceSection(threshold: Option[Double],
+                             inputs: EvidenceSectionInputs,
+                             output: IOResourceConfig)
 
   case class ModelConfiguration(windowSize: Int,
                                 numPartitions: Int,
@@ -49,11 +47,11 @@ object Configuration extends LazyLogging {
                                 minCount: Int,
                                 stepSize: Double)
 
+  case class EmbeddingSectionOutputs(model: IOResourceConfig, trainingSet: IOResourceConfig)
   case class EmbeddingSection(
       modelConfiguration: ModelConfiguration,
-      numSynonyms: Int,
       input: IOResourceConfig,
-      output: IOResourceConfig
+      outputs: EmbeddingSectionOutputs
   )
 
   case class VectorsSection(input: String, output: IOResourceConfig)
