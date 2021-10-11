@@ -18,8 +18,7 @@ object Configuration extends LazyLogging {
                     outputFormat: String,
                     publicationSectionRanks: Seq[PublicationSectionRank])
 
-  case class ProcessingOutput(grounding: IOResourceConfig,
-                              rawEvidence: IOResourceConfig,
+  case class ProcessingOutput(rawEvidence: IOResourceConfig,
                               cooccurrences: IOResourceConfig,
                               matches: IOResourceConfig,
                               literatureIndex: IOResourceConfig)

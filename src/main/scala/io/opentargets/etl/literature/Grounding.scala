@@ -266,15 +266,13 @@ object Grounding extends Serializable with LazyLogging {
       .join(mappedLabels, $"type1" === $"type" and $"label1" === $"label", "left_outer")
       .withColumnRenamed("keywordId", "keywordId1")
       .withColumnRenamed("labelN", "labelN1")
-      .withColumnRenamed("type", "type1")
       .withColumnRenamed("uniqueKeywordIdsPerLabelN", "uniqueKeywordIdsPerLabelN1")
-      .drop("label")
+      .drop("label", "type")
       .join(mappedLabels, $"type2" === $"type" and $"label2" === $"label", "left_outer")
       .withColumnRenamed("keywordId", "keywordId2")
       .withColumnRenamed("labelN", "labelN2")
-      .withColumnRenamed("type", "type2")
       .withColumnRenamed("uniqueKeywordIdsPerLabelN", "uniqueKeywordIdsPerLabelN2")
-      .drop("label")
+      .drop("label", "type")
       .withColumn("isMapped", $"keywordId1".isNotNull and $"keywordId2".isNotNull)
 
     val validCooc = mergedCooc
@@ -317,6 +315,9 @@ object Grounding extends Serializable with LazyLogging {
       implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
+    val eIds = broadcast(epmcids.orderBy($"pmcid_lut".asc))
+    val pmIds = broadcast(epmcids.orderBy($"pmid_lut"))
+
     df.withColumn("trace_source", input_file_name())
       .withColumn("pmid", when($"pmid".isNotNull and $"pmid" =!= "" and $"pmid" =!= "0", $"pmid"))
       .withColumn("pmcid",
@@ -324,8 +325,9 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("failed_pmid", $"pmid".isNull)
       .withColumn("failed_pmcid", $"pmcid".isNull)
       .withColumn("failed_pmcid_and_pmid", $"pmcid".isNull and $"pmid".isNull)
+      .join(pmIds, $"pmid_lut" === $"pmid" and $"pmcid".isNull, "left_anti")
       .withColumn("failed_pmid_not_pmcid", $"pmid".isNull and $"pmcid".isNotNull)
-      .join(epmcids, $"pmcid" === $"pmcid_lut", "left_outer")
+      .join(eIds, $"pmcid" === $"pmcid_lut", "left_outer")
       .withColumn("pmid", coalesce($"pmid", $"pmid_lut"))
       .drop(epmcids.columns.filter(_.endsWith("_lut")): _*)
       .withColumn("failed_recover_pmid_not_pmcid", $"failed_pmid_not_pmcid" and $"pmid".isNotNull)
@@ -342,33 +344,6 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("section", lower($"section"))
       .withColumn("failed_section", $"section".isNull)
       .withColumn("failed_sentence", $"text".rlike("[^\\x20-\\x7e]"))
-  }
-
-  def sampleEntities(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
-    import sparkSession.implicits._
-    // check for pmcid null
-    // check for pmid null
-    // check for section null
-    // sample 1% 0.01
-
-    val fileCol = "trace_source"
-    val failedCols = df.columns.filter(_.startsWith("failed_"))
-    val okCols = failedCols.map(c => col(c) === true)
-    val okFilter = okCols.reduceLeft((B, c) => B.or(c))
-
-    val allFailedCols = failedCols :+ "failed_true" :+ "failed_false"
-    val aggs = allFailedCols.map { cn =>
-      sum(when(col(cn) === true, lit(1)).otherwise(0)).as(cn + "_count")
-    } ++ Array(
-      collect_set(when($"failed_recover_pmid_not_pmcid" === true, struct($"pmcid", $"pmid")))
-        .as("failed_recovered_pmcids"))
-
-    val r = df
-      .withColumn("failed_true", when(okFilter, typedLit(true)).otherwise(typedLit(false)))
-      .withColumn("failed_false", not($"failed_true"))
-
-    r.groupBy(col(fileCol))
-      .agg(aggs.head, aggs.tail: _*)
   }
 
   def filterEntities(df: DataFrame)(implicit sparkSession: SparkSession): DataFrame = {
@@ -558,7 +533,7 @@ object Grounding extends Serializable with LazyLogging {
     import sparkSession.implicits._
     df.selectExpr("PMID as pmid_lut", "PMCID as pmcid_lut")
       .filter($"pmcid_lut".isNotNull and $"pmid_lut".isNotNull and $"pmcid_lut".startsWith("PMC"))
-      .orderBy($"pmcid_lut")
+      .distinct()
   }
 
   def compute(empcConfiguration: ProcessingSection)(
@@ -581,7 +556,7 @@ object Grounding extends Serializable with LazyLogging {
     val inputDataFrames = Helpers.readFrom(mappedInputs)
 
     logger.info("Load PMCID-PMID lut and OT entity lut")
-    val idLUT = broadcast(loadEPMCIDs(inputDataFrames("epmcids").data))
+    val idLUT = loadEPMCIDs(inputDataFrames("epmcids").data)
     val luts = broadcast(
       loadEntityLUT(
         inputDataFrames("targets").data,
@@ -594,10 +569,7 @@ object Grounding extends Serializable with LazyLogging {
     val epmcDf = Helpers.replaceSpacesSchema(inputDataFrames("epmc").data)
 
     logger.info("load and preprocess EPMC data")
-    val entities = loadEntities(epmcDf, idLUT)
-
-    val sampledDF = entities.transform(sampleEntities)
-    val sentences = entities.transform(filterEntities)
+    val sentences = loadEntities(epmcDf, idLUT).transform(filterEntities)
 
     logger.info("producing grounding dataset")
     val mappedLabels =
@@ -608,11 +580,6 @@ object Grounding extends Serializable with LazyLogging {
     logger.info("resolve entities with the produced grounded labels")
     val resolvedEntities = resolveEntities(sentences, mappedLabels)
 
-    val extraOutputs = Map(
-      "mappedLabels" -> mappedLabels,
-      "samples" -> sampledDF
-    )
-
-    resolvedEntities ++ extraOutputs
+    resolvedEntities
   }
 }

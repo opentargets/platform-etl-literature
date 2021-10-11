@@ -197,7 +197,6 @@ object Processing extends Serializable with LazyLogging {
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
-      "mappedLabels" -> IOResource(grounding("mappedLabels"), outputs.grounding),
       "samples" -> IOResource(samples, outputs.rawEvidence),
       "failedMatches" -> IOResource(
         failedMatches,
