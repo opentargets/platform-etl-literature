@@ -9,24 +9,33 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 
 object Evidence extends Serializable with LazyLogging {
-  val schema: StructType = StructType(
+  val matchesSchema: StructType = StructType(
     Array(
       StructField(name = "datasourceId", dataType = StringType, nullable = false),
       StructField(name = "datatypeId", dataType = StringType, nullable = false),
       StructField(name = "targetFromSourceId", dataType = StringType, nullable = false),
       StructField(name = "diseaseFromSourceMappedId", dataType = StringType, nullable = false),
       StructField(name = "resourceScore", dataType = DoubleType, nullable = false),
-      StructField(name = "rawResourceScore", dataType = DoubleType, nullable = false),
+      StructField(name = "similarity", dataType = DoubleType, nullable = false),
+      StructField(name = "harmonicSimilarity", dataType = DoubleType, nullable = false),
       StructField(name = "sharedPublicationCount", dataType = IntegerType, nullable = false),
       StructField(name = "meanTargetFreqPerPub", dataType = DoubleType, nullable = false),
       StructField(name = "meanDiseaseFreqPerPub", dataType = DoubleType, nullable = false)
     )
   )
 
-  def generateEvidence(
+  val cooccurrencesSchema: StructType = StructType(
+    Array(
+      StructField(name = "targetFromSourceId", dataType = StringType, nullable = false),
+      StructField(name = "diseaseFromSourceMappedId", dataType = StringType, nullable = false),
+      StructField(name = "harmonicCooccurrenceSentiment", dataType = DoubleType, nullable = false),
+      StructField(name = "cooccurredPublicationCount", dataType = IntegerType, nullable = false)
+    )
+  )
+
+  def computeEvidenceFromMatches(
       model: Word2VecModel,
       matches: DataFrame,
-      coocs: DataFrame,
       threshold: Option[Double])(implicit etlSessionContext: ETLSessionContext): DataFrame = {
     import etlSessionContext.sparkSession.implicits._
 
@@ -78,16 +87,56 @@ object Evidence extends Serializable with LazyLogging {
         mean($"diseaseF").as("meanDiseaseFreqPerPub"),
         count($"targetP").as("sharedPublicationCount")
       )
-      .withColumn("rawResourceScore", computeSimilarityScore($"targetV", $"diseaseV"))
-      .filter($"rawResourceScore" > threshold.getOrElse(Double.MinPositiveValue))
       .withColumn("sharedPublicationCount", $"sharedPublicationCount".cast(IntegerType))
-      .withColumn("resourceScore",
-                  harmonicFn(array_repeat($"rawResourceScore", $"sharedPublicationCount")))
+      .withColumn("similarity", computeSimilarityScore($"targetV", $"diseaseV"))
+      .filter($"similarity" > threshold.getOrElse(Double.MinPositiveValue))
+      .withColumn("harmonicSimilarity",
+                  harmonicFn(array_repeat($"similarity", $"sharedPublicationCount")))
+      .withColumn("resourceScore", $"harmonicSimilarity")
       .withColumn("datasourceId", lit("ew2v"))
       .withColumn("datatypeId", lit("literature"))
-      .select(schema.fieldNames.map(col): _*)
+      .select(matchesSchema.fieldNames.map(col): _*)
 
     ev
+  }
+
+  def computeEvidenceFromCoocs(coocs: DataFrame, threshold: Option[Double])(
+      implicit etlSessionContext: ETLSessionContext): DataFrame = {
+    import etlSessionContext.sparkSession.implicits._
+
+    val gcols = List("targetFromSourceId", "diseaseFromSourceMappedId")
+    logger.info("filter diseases from the matches")
+    val aggregatedCoocs = coocs
+      .filter(
+        $"isMapped" === true and
+          $"type1" === "GP" and
+          $"type2" === "DS" and
+          length($"text") < 600)
+      .withColumn("cooccurrenceScore", $"evidence_score" / 10D)
+      .withColumnRenamed("keywordId1", "targetFromSourceId")
+      .withColumnRenamed("keywordId2", "diseaseFromSourceMappedId")
+      .groupBy(gcols.map(col): _*)
+      .agg(harmonicFn(collect_list($"cooccurrenceScore")).as("harmonicCooccurrenceSentiment"),
+           countDistinct($"pmid").as("cooccurredPublicationCount"))
+      .select(cooccurrencesSchema.fieldNames.map(col): _*)
+
+    aggregatedCoocs
+  }
+
+  def generateEvidence(
+      model: Word2VecModel,
+      matches: DataFrame,
+      coocs: DataFrame,
+      threshold: Option[Double])(implicit etlSessionContext: ETLSessionContext): DataFrame = {
+
+    val evMatches = computeEvidenceFromMatches(model, matches, threshold)
+    val evCoocs = computeEvidenceFromCoocs(coocs, threshold)
+
+    val joinCols = "targetFromSourceId" :: "diseaseFromSourceMappedId" :: Nil
+
+    val joinedEvidences = evMatches.join(evCoocs, joinCols, "left_outer").na.fill(0D)
+
+    joinedEvidences
   }
 
   def apply()(implicit context: ETLSessionContext): Unit = {
