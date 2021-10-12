@@ -48,7 +48,7 @@ object Evidence extends Serializable with LazyLogging {
           .orderBy($"rank".asc))
 
     val gcols = List("pmid", "type", "keywordId")
-    logger.info("filter diseases from the matches")
+    logger.info("filter matches by isMapped and only the sections in the rank list")
     val mWithV = matches
       .filter($"isMapped" === true)
       .join(sectionRankTable, Seq("section"))
@@ -105,7 +105,7 @@ object Evidence extends Serializable with LazyLogging {
     import etlSessionContext.sparkSession.implicits._
 
     val gcols = List("targetFromSourceId", "diseaseFromSourceMappedId")
-    logger.info("filter diseases from the matches")
+    logger.info("filter cooccurrences by isMapped and GP and DS and text size < 600")
     val aggregatedCoocs = coocs
       .filter(
         $"isMapped" === true and
