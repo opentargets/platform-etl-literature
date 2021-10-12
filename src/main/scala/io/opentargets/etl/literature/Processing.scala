@@ -181,7 +181,6 @@ object Processing extends Serializable with LazyLogging {
       grounding(l).persist(StorageLevel.DISK_ONLY)
     }
 
-    val samples = grounding("samples")
     val failedMatches = grounding("matchesFailed")
     val failedCoocs = grounding("cooccurrencesFailed")
 
@@ -197,7 +196,6 @@ object Processing extends Serializable with LazyLogging {
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
-      "samples" -> IOResource(samples, outputs.rawEvidence),
       "failedMatches" -> IOResource(
         failedMatches,
         outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),
