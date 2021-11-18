@@ -1,6 +1,7 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.config.ConfigFactory
+import pureconfig.ConfigReader.Result
 import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.spark.Helpers.IOResourceConfig
 import pureconfig.ConfigReader.Result
@@ -18,8 +19,7 @@ object Configuration extends LazyLogging {
                     outputFormat: String,
                     publicationSectionRanks: Seq[PublicationSectionRank])
 
-  case class ProcessingOutput(grounding: IOResourceConfig,
-                              rawEvidence: IOResourceConfig,
+  case class ProcessingOutput(rawEvidence: IOResourceConfig,
                               cooccurrences: IOResourceConfig,
                               matches: IOResourceConfig,
                               literatureIndex: IOResourceConfig)
@@ -33,11 +33,13 @@ object Configuration extends LazyLogging {
       outputs: ProcessingOutput
   )
 
-  case class EvidenceOutputs(model: IOResourceConfig, evidence: IOResourceConfig)
+  case class EvidenceSectionInputs(matches: IOResourceConfig,
+                                   cooccurrences: IOResourceConfig,
+                                   model: IOResourceConfig)
+
   case class EvidenceSection(threshold: Option[Double],
-                             modelConfiguration: ModelConfiguration,
-                             input: IOResourceConfig,
-                             outputs: EvidenceOutputs)
+                             inputs: EvidenceSectionInputs,
+                             output: IOResourceConfig)
 
   case class ModelConfiguration(windowSize: Int,
                                 numPartitions: Int,
@@ -45,11 +47,11 @@ object Configuration extends LazyLogging {
                                 minCount: Int,
                                 stepSize: Double)
 
+  case class EmbeddingSectionOutputs(model: IOResourceConfig, trainingSet: IOResourceConfig)
   case class EmbeddingSection(
       modelConfiguration: ModelConfiguration,
-      numSynonyms: Int,
       input: IOResourceConfig,
-      output: IOResourceConfig
+      outputs: EmbeddingSectionOutputs
   )
 
   case class VectorsSection(input: String, output: IOResourceConfig)

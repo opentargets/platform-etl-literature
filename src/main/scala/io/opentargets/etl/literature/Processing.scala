@@ -181,13 +181,11 @@ object Processing extends Serializable with LazyLogging {
       grounding(l).persist(StorageLevel.DISK_ONLY)
     }
 
-    val samples = grounding("samples")
-    val failedMatches = filterMatches(grounding("matches"), isMapped = false)
-    val failedCoocs = filterCooccurrences(grounding("cooccurrences"), isMapped = false)
+    val failedMatches = grounding("matchesFailed")
+    val failedCoocs = grounding("cooccurrencesFailed")
 
     logger.info("Processing matches calculate done")
     val matches = filterMatches(grounding("matches"), isMapped = true)
-    // add disambiguate here perhaps?
 
     logger.info("Processing coOccurences calculate done")
     val coocs = filterCooccurrences(grounding("cooccurrences"), isMapped = true)
@@ -197,8 +195,6 @@ object Processing extends Serializable with LazyLogging {
     val outputs = empcConfiguration.outputs
     logger.info(s"write to ${context.configuration.common.output}/matches")
     val dataframesToSave = Map(
-      "mappedLabels" -> IOResource(grounding("mappedLabels"), outputs.grounding),
-      "samples" -> IOResource(samples, outputs.rawEvidence),
       "failedMatches" -> IOResource(
         failedMatches,
         outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),

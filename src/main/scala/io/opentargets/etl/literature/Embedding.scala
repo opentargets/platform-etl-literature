@@ -1,104 +1,89 @@
 package io.opentargets.etl.literature
 
 import com.typesafe.scalalogging.LazyLogging
-import io.opentargets.etl.literature.Configuration.{ModelConfiguration, PublicationSectionRank}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql._
-import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import io.opentargets.etl.literature.spark.Helpers
-import io.opentargets.etl.literature.spark.Helpers.{IOResource, makeWord2VecModel}
+import io.opentargets.etl.literature.spark.Helpers.{IOResource, makeWord2VecModel, writeTo}
+import org.apache.spark.ml.feature.Word2VecModel
 import org.apache.spark.sql.expressions.Window
 
 object Embedding extends Serializable with LazyLogging {
-  private def generateSynonyms(matchesModel: Word2VecModel, numSynonyms: Int)(
-      implicit
-      sparkSession: SparkSession) = {
-    import sparkSession.implicits._
+  private def filterMatches(matches: DataFrame)(
+      implicit etlSessionContext: ETLSessionContext): DataFrame = {
+    import etlSessionContext.sparkSession.implicits._
 
-    logger.info("produce the list of unique terms (GP, DS, CD)")
-    val keywords = matchesModel.getVectors.selectExpr("word as keywordId")
-    val bcModel = sparkSession.sparkContext.broadcast(matchesModel)
+    logger.info("prepare matches filtering by type of entities")
 
-    logger.info(
-      "compute the predictions to the associations DF with the precomputed model FPGrowth"
-    )
-
-    val matchesWithSynonymsFn = udf((word: String) => {
-      try {
-        bcModel.value.findSynonymsArray(word, numSynonyms)
-      } catch {
-        case _ => Array.empty[(String, Double)]
-      }
-    })
-
-    val matchesWithSynonyms = keywords
-      .withColumn("synonym", explode(matchesWithSynonymsFn($"keywordId")))
-      .withColumn("synonymId", $"synonym".getField("_1"))
-      .withColumn(
-        "synonymType",
-        when($"synonymId" rlike "^ENSG.*", "GP")
-          .when($"synonymId" rlike "^CHEMBL.*", "CD")
-          .otherwise("DS")
-      )
-      .withColumn(
-        "keywordType",
-        when($"keywordId" rlike "^ENSG.*", "GP")
-          .when($"keywordId" rlike "^CHEMBL.*", "CD")
-          .otherwise("DS")
-      )
-      .withColumn("synonymScore", $"synonym".getField("_2"))
-      .drop("synonym")
-
-    matchesWithSynonyms
+    val types = "DS" :: "GP" :: "CD" :: Nil
+    matches
+      .filter($"isMapped" === true and $"type".isInCollection(types))
   }
 
-  private def generateWord2VecModel(df: DataFrame, modelConfiguration: ModelConfiguration)(
-      implicit sparkSession: SparkSession) = {
-    val matchesModel =
-      makeWord2VecModel(df, modelConfiguration, inputColName = "terms", outputColName = "synonyms")
+  private def regroupMatches(selectCols: Seq[String])(df: DataFrame)(
+      implicit etlSessionContext: ETLSessionContext): DataFrame = {
+    import etlSessionContext.sparkSession.implicits._
 
-    matchesModel
-  }
-
-  def transformMatches(
-      selectCols: Seq[String],
-      sectionRankingTable: Dataset[PublicationSectionRank])(df: DataFrame): DataFrame = {
-
-    val wByFreq = Window.partitionBy("pmid", "section", "keywordId")
-    val w = Window.partitionBy("pmid").orderBy(col("rank").asc, col("f").desc)
-
-    df.join(sectionRankingTable, Seq("section"), "left_outer")
-      .na
-      .fill(100, "rank" :: Nil)
-      .withColumn("f", count(lit(1)).over(wByFreq))
-      .dropDuplicates("pmid", "section", "keywordId")
-      .withColumn("terms", collect_list(col("keywordId")).over(w))
-      .selectExpr(selectCols: _*)
-  }
-
-  def compute(matches: DataFrame, configuration: Configuration.OTConfig)(
-      implicit sparkSession: SparkSession): Map[String, IOResource] = {
-    import sparkSession.implicits._
-
-    val output = configuration.embedding.output
-    val modelConf = configuration.embedding.modelConfiguration
+    logger.info("prepare matches regrouping the entities by ranked section")
     val sectionImportances =
-      configuration.common.publicationSectionRanks
-
+      etlSessionContext.configuration.common.publicationSectionRanks
     val sectionRankTable =
       broadcast(
         sectionImportances
           .toDS()
           .orderBy($"rank".asc))
 
+    val partitionPerSection = "pmid" :: "rank" :: Nil
+    val wPerSection = Window.partitionBy(partitionPerSection.map(col): _*)
+
+    val trDS = df
+      .join(sectionRankTable, Seq("section"))
+      .withColumn("keys", collect_set($"keywordId").over(wPerSection))
+      .dropDuplicates(partitionPerSection.head, partitionPerSection.tail: _*)
+      .groupBy($"pmid")
+      .agg(collect_list($"keys").as("keys"))
+      .withColumn("overall", flatten($"keys"))
+      .withColumn("all", concat($"keys", array($"overall")))
+      .withColumn("terms", explode($"all"))
+      .selectExpr(selectCols: _*)
+      .persist()
+
+    logger.info("saving training dataset")
+    writeTo(
+      Map(
+        "trainingSet" -> IOResource(
+          trDS,
+          etlSessionContext.configuration.embedding.outputs.trainingSet
+        )
+      )
+    )(etlSessionContext.sparkSession)
+
+    trDS
+
+  }
+
+  def generateModel(matches: DataFrame)(
+      implicit etlSessionContext: ETLSessionContext): Word2VecModel = {
+    val modelConfiguration = etlSessionContext.configuration.embedding.modelConfiguration
+    val df = matches
+      .transform(filterMatches)
+      .transform(regroupMatches("pmid" :: "terms" :: Nil))
+
+    logger.info(s"training W2V model with configuration ${modelConfiguration.toString}")
+    makeWord2VecModel(df, modelConfiguration, inputColName = "terms", outputColName = "synonyms")
+  }
+
+  def compute(matches: DataFrame, configuration: Configuration.OTConfig)(
+      implicit etlSessionContext: ETLSessionContext): Map[String, IOResource] = {
+
+    val output = configuration.embedding.outputs.model
+    val modelConf = configuration.embedding.modelConfiguration
+
     logger.info("CPUs available: " + Runtime.getRuntime().availableProcessors().toString())
     logger.info(s"Model configuration: ${modelConf.toString}")
 
-    val groupedMatches = matches.transform(transformMatches("terms" :: Nil, sectionRankTable))
-
-    val matchesModels =
-      generateWord2VecModel(groupedMatches, modelConf)
+    val matchesModels = generateModel(matches)
 
     // The matchesModel is a W2VModel and the output is parquet.
     matchesModels.save(output.path)

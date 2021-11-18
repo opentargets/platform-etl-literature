@@ -2,7 +2,6 @@ package io.opentargets.etl.literature.spark
 
 import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.Configuration.{ModelConfiguration, OTConfig}
-import io.opentargets.etl.literature.Embedding.logger
 import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import org.apache.spark.ml.linalg.Vector
@@ -59,7 +58,7 @@ object Helpers extends LazyLogging {
       inputColName: String,
       outputColName: String = "prediction"
   ): Word2VecModel = {
-    logger.info(s"compute Word2Vec model for input col ${inputColName} into ${outputColName}")
+    logger.info(s"compute Word2Vec model for input col $inputColName into $outputColName")
 
     val w2vModel = new Word2Vec()
       .setWindowSize(modelConfiguration.windowSize)
@@ -195,7 +194,7 @@ object Helpers extends LazyLogging {
   }
 
   /** Helper function to write multiple outputs
-    * @param IOResources map of String and relative IOResourceg
+    * @param outputs map of String and relative IOResourceg
     * @return outputs itself.
     */
   def writeTo(outputs: IOResources)(implicit session: SparkSession): IOResources = {
