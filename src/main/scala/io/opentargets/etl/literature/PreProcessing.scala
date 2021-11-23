@@ -40,7 +40,8 @@ object PreProcessing extends Serializable with LazyLogging {
       .drop("abstracts")
       .withColumn("section", lit("abstract"))
       .withColumn("sectionType",
-                  when($"abstract._1".isNotNull and ($"abstract._1" !== ""), $"abstract._1"))
+                  when($"abstract._1".isNotNull and ($"abstract._1" !== ""),
+                       lower(trim($"abstract._1"))))
       .withColumn("sectionContent", $"abstract._2")
       .drop("abstract")
 
