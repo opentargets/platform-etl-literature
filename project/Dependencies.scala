@@ -40,4 +40,9 @@ object Dependencies {
   lazy val johnS = Seq(
     "com.johnsnowlabs.nlp" % "spark-nlp_2.12" % johnSVersion
   )
+
+  lazy val scalaXMLVersion = "2.0.1"
+  lazy val scalaXML = Seq(
+    "org.scala-lang.modules" %% "scala-xml" % scalaXMLVersion
+  )
 }
