@@ -1,8 +1,16 @@
 package io.opentargets.etl.literature.spark
 
+import com.johnsnowlabs.nlp.annotator.{
+  DocumentNormalizer,
+  SentenceDetector,
+  SentenceDetectorDLApproach
+}
+import com.johnsnowlabs.nlp.annotators.sentence_detector_dl.SentenceDetectorDLModel
+import com.johnsnowlabs.nlp.base.{DocumentAssembler, Finisher}
 import com.typesafe.scalalogging.LazyLogging
 import io.opentargets.etl.literature.Configuration.{ModelConfiguration, OTConfig}
 import org.apache.spark.SparkConf
+import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.ml.linalg.Vectors.norm
@@ -226,5 +234,88 @@ object Helpers extends LazyLogging {
     }
 
     outputs
+  }
+
+  def makeSentencerModel(df: DataFrame, colName: String) = {
+    // https://nlp.johnsnowlabs.com/docs/en/models#english---models
+    val tmpCol1 = Random.alphanumeric.take(6).mkString
+    val tmpCol2 = Random.alphanumeric.take(6).mkString
+
+    val documentAssembler = new DocumentAssembler()
+      .setInputCol(colName)
+      .setOutputCol(tmpCol1)
+
+    val sentencerDL = new SentenceDetectorDLApproach()
+      .setInputCols(tmpCol1)
+      .setOutputCol(tmpCol2)
+
+    val pipeline = new Pipeline()
+      .setStages(
+        Array(
+          documentAssembler,
+          sentencerDL
+        )
+      )
+
+    pipeline.fit(df)
+  }
+
+  def makeSentencerPipeline(fromCol: String, toCol: String): Pipeline = {
+    // https://nlp.johnsnowlabs.com/docs/en/models#english---models
+    val tmpCol1 = Random.alphanumeric.take(6).mkString
+    val tmpCol2 = Random.alphanumeric.take(6).mkString
+
+    val documentAssembler = new DocumentAssembler()
+      .setInputCol(fromCol)
+      .setOutputCol(tmpCol1)
+      .setCleanupMode("shrink")
+
+//    val sentencerDL = SentenceDetectorDLModel
+//      .pretrained("sentence_detector_dl", "en")
+//      .setInputCols(tmpCol1)
+//      .setOutputCol(tmpCol2)
+
+    val sentencer = new SentenceDetector()
+      .setInputCols(tmpCol1)
+      .setOutputCol(toCol)
+      .setMinLength(5)
+
+    val finisher = new Finisher()
+      .setInputCols(toCol)
+      .setIncludeMetadata(false)
+
+    val pipeline = new Pipeline()
+      .setStages(
+        Array(
+          documentAssembler,
+//          sentencerDL,
+          sentencer,
+          finisher
+        )
+      )
+
+    pipeline
+  }
+
+  def processSentences(df: DataFrame): DataFrame = {
+    val pipeline = makeSentencerPipeline("sectionContent", "sentences")
+    val annotations = pipeline
+      .fit(df)
+      .transform(df)
+
+    annotations
+      .drop("sectionContent")
+      .withColumn("sentence", explode(col("finished_sentences")))
+      .drop("finished_sentences")
+  }
+
+  def timeIt[R](block: => R): R = {
+    val t0 = System.nanoTime()
+    val result = block
+    val t1 = System.nanoTime()
+    val delta = (t1 - t0) / 1000000000D // to secs fraction
+    logger.info("Elapsed time: " + delta.toString + "secs")
+
+    result
   }
 }

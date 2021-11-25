@@ -56,13 +56,17 @@ object Configuration extends LazyLogging {
 
   case class VectorsSection(input: String, output: IOResourceConfig)
 
+  case class RawSection(path: String, output: IOResourceConfig)
+
   case class OTConfig(
       sparkUri: Option[String],
       common: Common,
       processing: ProcessingSection,
       embedding: EmbeddingSection,
       vectors: VectorsSection,
-      evidence: EvidenceSection
+      evidence: EvidenceSection,
+      pmc: RawSection,
+      epmc: RawSection
   )
 
   def load: ConfigReader.Result[OTConfig] = {
