@@ -1,5 +1,7 @@
 package io.opentargets.etl.literature.spark
 
+import com.typesafe.scalalogging.LazyLogging
+import io.opentargets.etl.literature.Configuration.{ModelConfiguration, OTConfig}
 import com.johnsnowlabs.nlp.annotator.{
   DocumentNormalizer,
   SentenceDetector,
@@ -7,8 +9,6 @@ import com.johnsnowlabs.nlp.annotator.{
 }
 import com.johnsnowlabs.nlp.annotators.sentence_detector_dl.SentenceDetectorDLModel
 import com.johnsnowlabs.nlp.base.{DocumentAssembler, Finisher}
-import com.typesafe.scalalogging.LazyLogging
-import io.opentargets.etl.literature.Configuration.{ModelConfiguration, OTConfig}
 import org.apache.spark.SparkConf
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.feature.{Word2Vec, Word2VecModel}
