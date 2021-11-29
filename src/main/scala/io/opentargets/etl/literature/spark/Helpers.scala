@@ -288,7 +288,8 @@ object Helpers extends LazyLogging {
       .setOutputCol(tmpCol2)
 
     val finisher = new Finisher()
-      .setInputCols(toCol)
+      .setInputCols(tmpCol2)
+      .setOutputCols(toCol)
       .setIncludeMetadata(false)
 
     val pipeline = new Pipeline()
@@ -324,7 +325,7 @@ object Helpers extends LazyLogging {
 
     annotations
       .drop("sectionContent")
-      .withColumnRenamed(s"finished_$tmpCol", outputSentencesColName.getOrElse("sentences"))
+      .withColumnRenamed(s"$tmpCol", outputSentencesColName.getOrElse("sentences"))
   }
 
   /** timeIt takes the delta time of execution from a piece of code like
