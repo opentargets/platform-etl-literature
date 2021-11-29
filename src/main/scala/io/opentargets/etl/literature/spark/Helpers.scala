@@ -236,7 +236,13 @@ object Helpers extends LazyLogging {
     outputs
   }
 
-  def makeSentencerModel(df: DataFrame, colName: String) = {
+  /** makeSentencerModel make and train a model for the CNN sentencer recently added to Spark NLP
+    * you can make use of this funcion on the spark shell in dataproc just to generate another trained model
+    *
+    * to save the resulted model you have to do
+    *  model.stages(1).asInstanceOf[SentenceDetectorDLModel].write.overwrite().save(savedModelPath)
+    */
+  def makeSentencerModel(df: DataFrame, colName: String): SentenceDetectorDLModel = {
     // https://nlp.johnsnowlabs.com/docs/en/models#english---models
     val tmpCol1 = Random.alphanumeric.take(6).mkString
     val tmpCol2 = Random.alphanumeric.take(6).mkString
@@ -257,10 +263,16 @@ object Helpers extends LazyLogging {
         )
       )
 
-    pipeline.fit(df)
+    val model = pipeline.fit(df)
+    model.stages(1).asInstanceOf[SentenceDetectorDLModel]
   }
 
-  def makeSentencerPipeline(fromCol: String, toCol: String): Pipeline = {
+  /** makeSentencerPipeline creates a pipeline to split segments of text into sentences. This
+    * function is used inside `processSentences` which is the right function to use instead of this one
+    */
+  def makeSentencerPipeline(sentencerModel: Option[SentenceDetectorDLModel],
+                            fromCol: String,
+                            toCol: String): Pipeline = {
     // https://nlp.johnsnowlabs.com/docs/en/models#english---models
     val tmpCol1 = Random.alphanumeric.take(6).mkString
     val tmpCol2 = Random.alphanumeric.take(6).mkString
@@ -270,15 +282,10 @@ object Helpers extends LazyLogging {
       .setOutputCol(tmpCol1)
       .setCleanupMode("shrink")
 
-//    val sentencerDL = SentenceDetectorDLModel
-//      .pretrained("sentence_detector_dl", "en")
-//      .setInputCols(tmpCol1)
-//      .setOutputCol(tmpCol2)
-
-    val sentencer = new SentenceDetector()
+    val sentencer = sentencerModel
+      .getOrElse(new SentenceDetector())
       .setInputCols(tmpCol1)
-      .setOutputCol(toCol)
-      .setMinLength(5)
+      .setOutputCol(tmpCol2)
 
     val finisher = new Finisher()
       .setInputCols(toCol)
@@ -288,7 +295,6 @@ object Helpers extends LazyLogging {
       .setStages(
         Array(
           documentAssembler,
-//          sentencerDL,
           sentencer,
           finisher
         )
@@ -297,25 +303,49 @@ object Helpers extends LazyLogging {
     pipeline
   }
 
-  def processSentences(df: DataFrame): DataFrame = {
-    val pipeline = makeSentencerPipeline("sectionContent", "sentences")
+  /** convertIntoSentences uses inputContentColName with the optional model modelPath to
+    * generate a new column called sentencesColName as an array of split sentences from the input
+    * content. If modelPath is None then a standard model will be used instead
+    */
+  def convertIntoSentences(
+      df: DataFrame,
+      modelPath: Option[String],
+      inputContentColName: String,
+      outputSentencesColName: Option[String] = Some("sentences")): DataFrame = {
+    // sentencerModel: SentenceDetectorDLModel
+    val model: Option[SentenceDetectorDLModel] = modelPath
+      .map(SentenceDetectorDLModel.load)
+
+    val tmpCol = Random.alphanumeric.take(6).mkString
+    val pipeline = makeSentencerPipeline(model, inputContentColName, tmpCol)
     val annotations = pipeline
       .fit(df)
       .transform(df)
 
     annotations
       .drop("sectionContent")
-      .withColumn("sentence", explode(col("finished_sentences")))
-      .drop("finished_sentences")
+      .withColumnRenamed(s"finished_$tmpCol", outputSentencesColName.getOrElse("sentences"))
   }
 
-  def timeIt[R](block: => R): R = {
+  /** timeIt takes the delta time of execution from a piece of code like
+    * '''
+    * val sum = timeIt {
+    *   2 + 3
+    * }
+    * '''
+    */
+  def timeItFn[R](printFn: Option[String => Unit])(prefixLog: Option[String])(block: => R): R = {
     val t0 = System.nanoTime()
     val result = block
     val t1 = System.nanoTime()
     val delta = (t1 - t0) / 1000000000D // to secs fraction
-    logger.info("Elapsed time: " + delta.toString + "secs")
+    val msgs = prefixLog :: Some(delta.toString) :: Some("secs") :: Nil
+    printFn.foreach { f =>
+      f(msgs.mkString("", " ", ""))
+    }
 
     result
   }
+
+  val timeIt = timeItFn(Some(println))(Some("Elapsed time"))(_)
 }
