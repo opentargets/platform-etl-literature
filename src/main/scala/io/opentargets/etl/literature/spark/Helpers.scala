@@ -334,7 +334,7 @@ object Helpers extends LazyLogging {
     * }
     * '''
     */
-  def timeItFn[R](printFn: Option[String => Unit])(prefixLog: Option[String])(block: => R): R = {
+  def timeIt[R](printFn: Option[String => Unit])(prefixLog: Option[String])(block: => R): R = {
     val t0 = System.nanoTime()
     val result = block
     val t1 = System.nanoTime()
@@ -346,6 +346,4 @@ object Helpers extends LazyLogging {
 
     result
   }
-
-  val timeIt = timeItFn(Some(println))(Some("Elapsed time"))(_)
 }
