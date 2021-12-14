@@ -36,7 +36,7 @@ object Dependencies {
 
   lazy val typeSafeConfig = "com.typesafe" % "config" % "1.4.1"
 
-  lazy val johnSVersion = "3.2.2"
+  lazy val johnSVersion = "3.3.4"
   lazy val johnS = Seq(
     "com.johnsnowlabs.nlp" % "spark-nlp_2.12" % johnSVersion
   )
