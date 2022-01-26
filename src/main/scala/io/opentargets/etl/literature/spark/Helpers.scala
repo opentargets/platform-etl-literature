@@ -27,7 +27,7 @@ object Helpers extends LazyLogging {
   )
 
   /** generate a spark session given the arguments if sparkUri is None then try to get from env
-    * otherwise it will set the master explicitely
+    * otherwise it will set the master explicitly
     * @param appName the app name
     * @param sparkUri uri for the spark env master if None then it will try to get from yarn
     * @return a sparksession object
