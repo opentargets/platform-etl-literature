@@ -2,13 +2,16 @@
 
 set -x
 
+release='22.02.1'
+config=literature-all.conf
+
+path=gs://open-targets-pre-data-releases/${release}
+config_path=$path/conf/
 jarVersion=$(git rev-parse --short HEAD)
 image=2.0-debian10
 cluster_name=literature-cluster
-config_path=gs://open-targets-pre-data-releases/22.02.1/conf/
-config=literature-all.conf
 jarfile=etl-literature-$jarVersion.jar
-jartoexecute=gs://open-targets-pre-data-releases/22.02.1/jars/$jarfile
+jartoexecute=$path/jars/$jarfile
 
 sbt 'set test in assembly := {}' clean assembly
 
