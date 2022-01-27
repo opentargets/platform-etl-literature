@@ -5,7 +5,8 @@ set -x
 jarVersion=$(git rev-parse --short HEAD)
 image=2.0-debian10
 cluster_name=literature-cluster
-#config=22_02_1.conf
+config_path=gs://open-targets-pre-data-releases/22.02.1/conf/
+config=literature-all.conf
 jarfile=etl-literature-$jarVersion.jar
 jartoexecute=gs://open-targets-pre-data-releases/22.02.1/jars/$jarfile
 
@@ -34,8 +35,8 @@ gcloud dataproc jobs submit spark \
   --cluster=$cluster_name \
   --project=open-targets-eu-dev \
   --region=europe-west1 \
-  --labels=step="$(echo $step | tr '[:upper:]' '[:lower:]')",jar=${jarfile%.*jar} \
+  --files="${config_path}${config}" \
+  --properties=spark.executor.extraJavaOptions=-Dconfig.file=$config,spark.driver.extraJavaOptions=-Dconfig.file=$config \
+  --labels=jar=${jarfile%.*jar} \
   --class=io.opentargets.etl.Main \
   --jars=$jartoexecute
-#           --files=$config \
-#           --properties=spark.executor.extraJavaOptions=-Dconfig.file=$config,spark.driver.extraJavaOptions=-Dconfig.file=$config \
