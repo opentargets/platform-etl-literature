@@ -285,7 +285,7 @@ object Grounding extends Serializable with LazyLogging {
           $"association",
           $"end1",
           $"end2",
-          $"sent_evidence_score".as("evidence_score"),
+          $"sentEvidenceScore".as("evidence_score"),
           $"label1",
           $"labelN1",
           $"keywordId1",
