@@ -282,7 +282,7 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn(
         "co-occurrence",
         struct(
-          $"association",
+//          $"association",
           $"end1",
           $"end2",
           $"sentEvidenceScore".as("evidence_score"),
@@ -292,7 +292,7 @@ object Grounding extends Serializable with LazyLogging {
           $"label2",
           $"labelN2",
           $"keywordId2",
-          $"relation",
+//          $"relation",
           $"start1",
           $"start2",
           concat_ws("-", $"type1", $"type2").as("type"),
