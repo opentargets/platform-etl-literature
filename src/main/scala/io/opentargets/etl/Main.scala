@@ -5,9 +5,8 @@ import io.opentargets.etl.literature._
 
 object Main {
 
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]): Unit =
     ETL(args.toSeq)
-  }
 }
 
 object ETL extends LazyLogging {
@@ -37,8 +36,7 @@ object ETL extends LazyLogging {
     logger.info(s"finished to run step ($step)")
   }
 
-  def apply(steps: Seq[String]): Unit = {
-
+  def apply(steps: Seq[String]): Unit =
     ETLSessionContext() match {
       case Right(otContext) =>
         implicit val ctxt: ETLSessionContext = otContext
@@ -62,5 +60,4 @@ object ETL extends LazyLogging {
 
       case Left(ex) => logger.error(ex.prettyPrint())
     }
-  }
 }

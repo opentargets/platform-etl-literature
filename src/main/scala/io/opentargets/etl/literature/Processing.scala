@@ -13,20 +13,21 @@ import org.apache.spark.storage.StorageLevel
 object Processing extends Serializable with LazyLogging {
   private def maxHarmonicFn(s: Column): Column =
     aggregate(
-      zip_with(sequence(lit(1), s), sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2D)),
+      zip_with(sequence(lit(1), s), sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2d)),
       lit(0D),
       (c1, c2) => c1 + c2
     )
 
   private def harmonicFn(v: Column, s: Column): Column =
     aggregate(
-      zip_with(v, sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2D)),
-      lit(0D),
+      zip_with(v, sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2d)),
+      lit(0d),
       (c1, c2) => c1 + c2
     )
 
   private def filterCooccurrences(df: DataFrame, isMapped: Boolean)(
-      implicit sparkSession: SparkSession): DataFrame = {
+      implicit
+      sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
     val droppedCols = "co-occurrence" :: Nil
@@ -38,7 +39,8 @@ object Processing extends Serializable with LazyLogging {
   }
 
   private def filterMatches(df: DataFrame, isMapped: Boolean)(
-      implicit sparkSession: SparkSession): DataFrame = {
+      implicit
+      sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
     val droppedCols = "match" :: Nil
@@ -58,7 +60,8 @@ object Processing extends Serializable with LazyLogging {
       broadcast(
         sectionImportances
           .toDS()
-          .orderBy($"rank".asc))
+          .orderBy($"rank".asc)
+      )
 
     val wBySectionKeyword = Window.partitionBy("pmid", "section", "keywordId")
     val wByKeyword = Window.partitionBy("pmid", "keywordId")
@@ -93,7 +96,8 @@ object Processing extends Serializable with LazyLogging {
                    $"startInSentence",
                    $"endInSentence",
                    $"sectionStart",
-                   $"sectionEnd")).as("matches")
+                   $"sectionEnd")
+          ).as("matches")
         ).as("sentencesBySection")
       )
       .groupBy($"pmid")
@@ -145,7 +149,8 @@ object Processing extends Serializable with LazyLogging {
       .filter(
         $"section".isNotNull and
           $"isMapped" === true and
-          $"section".isInCollection(Seq("title", "abstract")))
+          $"section".isInCollection(Seq("title", "abstract"))
+      )
       .withColumn("match",
                   struct($"endInSentence",
                          $"label",
@@ -197,10 +202,12 @@ object Processing extends Serializable with LazyLogging {
     val dataframesToSave = Map(
       "failedMatches" -> IOResource(
         failedMatches,
-        outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),
+        outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")
+      ),
       "failedCoocs" -> IOResource(
         failedCoocs,
-        outputs.matches.copy(path = context.configuration.common.output + "/failedCooccurrences")),
+        outputs.matches.copy(path = context.configuration.common.output + "/failedCooccurrences")
+      ),
       "cooccurrences" -> IOResource(coocs, outputs.cooccurrences),
       "matches" -> IOResource(matches, outputs.matches),
       "literatureIndex" -> IOResource(literatureIndexAlt, outputs.literatureIndex)

@@ -10,8 +10,9 @@ import org.apache.spark.ml.feature.Word2VecModel
 import org.apache.spark.sql.expressions.Window
 
 object Embedding extends Serializable with LazyLogging {
-  private def filterMatches(matches: DataFrame)(
-      implicit etlSessionContext: ETLSessionContext): DataFrame = {
+  private def filterMatches(
+      matches: DataFrame
+  )(implicit etlSessionContext: ETLSessionContext): DataFrame = {
     import etlSessionContext.sparkSession.implicits._
 
     logger.info("prepare matches filtering by type of entities")
@@ -21,8 +22,9 @@ object Embedding extends Serializable with LazyLogging {
       .filter($"isMapped" === true and $"type".isInCollection(types))
   }
 
-  private def regroupMatches(selectCols: Seq[String])(df: DataFrame)(
-      implicit etlSessionContext: ETLSessionContext): DataFrame = {
+  private def regroupMatches(
+      selectCols: Seq[String]
+  )(df: DataFrame)(implicit etlSessionContext: ETLSessionContext): DataFrame = {
     import etlSessionContext.sparkSession.implicits._
 
     logger.info("prepare matches regrouping the entities by ranked section")
@@ -32,7 +34,8 @@ object Embedding extends Serializable with LazyLogging {
       broadcast(
         sectionImportances
           .toDS()
-          .orderBy($"rank".asc))
+          .orderBy($"rank".asc)
+      )
 
     val partitionPerSection = "pmid" :: "rank" :: Nil
     val wPerSection = Window.partitionBy(partitionPerSection.map(col): _*)
@@ -63,8 +66,9 @@ object Embedding extends Serializable with LazyLogging {
 
   }
 
-  def generateModel(matches: DataFrame)(
-      implicit etlSessionContext: ETLSessionContext): Word2VecModel = {
+  def generateModel(
+      matches: DataFrame
+  )(implicit etlSessionContext: ETLSessionContext): Word2VecModel = {
     val modelConfiguration = etlSessionContext.configuration.embedding.modelConfiguration
     val df = matches
       .transform(filterMatches)
@@ -74,8 +78,9 @@ object Embedding extends Serializable with LazyLogging {
     makeWord2VecModel(df, modelConfiguration, inputColName = "terms", outputColName = "synonyms")
   }
 
-  def compute(matches: DataFrame, configuration: Configuration.OTConfig)(
-      implicit etlSessionContext: ETLSessionContext): Map[String, IOResource] = {
+  def compute(matches: DataFrame, configuration: Configuration.OTConfig)(implicit
+      etlSessionContext: ETLSessionContext
+  ): Map[String, IOResource] = {
 
     val output = configuration.embedding.outputs.model
     val modelConf = configuration.embedding.modelConfiguration
