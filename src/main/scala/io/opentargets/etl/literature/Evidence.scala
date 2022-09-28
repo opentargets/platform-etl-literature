@@ -33,10 +33,10 @@ object Evidence extends Serializable with LazyLogging {
     )
   )
 
-  def computeEvidenceFromMatches(
-      model: Word2VecModel,
-      matches: DataFrame,
-      threshold: Option[Double])(implicit etlSessionContext: ETLSessionContext): DataFrame = {
+  def computeEvidenceFromMatches(model: Word2VecModel,
+                                 matches: DataFrame,
+                                 threshold: Option[Double]
+  )(implicit etlSessionContext: ETLSessionContext): DataFrame = {
     import etlSessionContext.sparkSession.implicits._
 
     val sectionImportances =
@@ -45,7 +45,8 @@ object Evidence extends Serializable with LazyLogging {
       broadcast(
         sectionImportances
           .toDS()
-          .orderBy($"rank".asc))
+          .orderBy($"rank".asc)
+      )
 
     val gcols = List("pmid", "type", "keywordId")
     logger.info("filter matches by isMapped and only the sections in the rank list")
@@ -78,7 +79,8 @@ object Evidence extends Serializable with LazyLogging {
       .join(
         matchesGP,
         ($"targetP" === $"diseaseP") and ($"diseaseFromSourceMappedId" !== $"targetFromSourceId"),
-        "inner")
+        "inner"
+      )
       .groupBy($"targetFromSourceId", $"diseaseFromSourceMappedId")
       .agg(
         first($"targetV").as("targetV"),
@@ -91,7 +93,8 @@ object Evidence extends Serializable with LazyLogging {
       .withColumn("similarity", computeSimilarityScore($"targetV", $"diseaseV"))
       .filter($"similarity" > threshold.getOrElse(Double.MinPositiveValue))
       .withColumn("harmonicSimilarity",
-                  harmonicFn(array_repeat($"similarity", $"sharedPublicationCount")))
+                  harmonicFn(array_repeat($"similarity", $"sharedPublicationCount"))
+      )
       .withColumn("resourceScore", $"harmonicSimilarity")
       .withColumn("datasourceId", lit("ew2v"))
       .withColumn("datatypeId", lit("literature"))
@@ -100,8 +103,9 @@ object Evidence extends Serializable with LazyLogging {
     ev
   }
 
-  def computeEvidenceFromCoocs(coocs: DataFrame, threshold: Option[Double])(
-      implicit etlSessionContext: ETLSessionContext): DataFrame = {
+  def computeEvidenceFromCoocs(coocs: DataFrame, threshold: Option[Double])(implicit
+      etlSessionContext: ETLSessionContext
+  ): DataFrame = {
     import etlSessionContext.sparkSession.implicits._
 
     val gcols = List("targetFromSourceId", "diseaseFromSourceMappedId")
@@ -111,30 +115,32 @@ object Evidence extends Serializable with LazyLogging {
         $"isMapped" === true and
           $"type1" === "GP" and
           $"type2" === "DS" and
-          length($"text") < 600)
-      .withColumn("cooccurrenceScore", $"evidence_score" / 10D)
+          length($"text") < 600
+      )
+      .withColumn("cooccurrenceScore", $"evidence_score" / 10d)
       .withColumnRenamed("keywordId1", "targetFromSourceId")
       .withColumnRenamed("keywordId2", "diseaseFromSourceMappedId")
       .groupBy(gcols.map(col): _*)
       .agg(harmonicFn(collect_list($"cooccurrenceScore")).as("harmonicCooccurrenceSentiment"),
-           countDistinct($"pmid").as("cooccurredPublicationCount"))
+           countDistinct($"pmid").as("cooccurredPublicationCount")
+      )
       .select(cooccurrencesSchema.fieldNames.map(col): _*)
 
     aggregatedCoocs
   }
 
-  def generateEvidence(
-      model: Word2VecModel,
-      matches: DataFrame,
-      coocs: DataFrame,
-      threshold: Option[Double])(implicit etlSessionContext: ETLSessionContext): DataFrame = {
+  def generateEvidence(model: Word2VecModel,
+                       matches: DataFrame,
+                       coocs: DataFrame,
+                       threshold: Option[Double]
+  )(implicit etlSessionContext: ETLSessionContext): DataFrame = {
 
     val evMatches = computeEvidenceFromMatches(model, matches, threshold)
     val evCoocs = computeEvidenceFromCoocs(coocs, threshold)
 
     val joinCols = "targetFromSourceId" :: "diseaseFromSourceMappedId" :: Nil
 
-    val joinedEvidences = evMatches.join(evCoocs, joinCols, "left_outer").na.fill(0D)
+    val joinedEvidences = evMatches.join(evCoocs, joinCols, "left_outer").na.fill(0d)
 
     joinedEvidences
   }

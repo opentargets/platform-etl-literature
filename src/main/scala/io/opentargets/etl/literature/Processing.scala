@@ -13,20 +13,21 @@ import org.apache.spark.storage.StorageLevel
 object Processing extends Serializable with LazyLogging {
   private def maxHarmonicFn(s: Column): Column =
     aggregate(
-      zip_with(sequence(lit(1), s), sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2D)),
-      lit(0D),
+      zip_with(sequence(lit(1), s), sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2d)),
+      lit(0d),
       (c1, c2) => c1 + c2
     )
 
   private def harmonicFn(v: Column, s: Column): Column =
     aggregate(
-      zip_with(v, sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2D)),
-      lit(0D),
+      zip_with(v, sequence(lit(1), s), (e1, e2) => e1 / pow(e2, 2d)),
+      lit(0d),
       (c1, c2) => c1 + c2
     )
 
-  private def filterCooccurrences(df: DataFrame, isMapped: Boolean)(
-      implicit sparkSession: SparkSession): DataFrame = {
+  private def filterCooccurrences(df: DataFrame, isMapped: Boolean)(implicit
+      sparkSession: SparkSession
+  ): DataFrame = {
     import sparkSession.implicits._
 
     val droppedCols = "co-occurrence" :: Nil
@@ -37,8 +38,9 @@ object Processing extends Serializable with LazyLogging {
 
   }
 
-  private def filterMatches(df: DataFrame, isMapped: Boolean)(
-      implicit sparkSession: SparkSession): DataFrame = {
+  private def filterMatches(df: DataFrame, isMapped: Boolean)(implicit
+      sparkSession: SparkSession
+  ): DataFrame = {
     import sparkSession.implicits._
 
     val droppedCols = "match" :: Nil
@@ -58,7 +60,8 @@ object Processing extends Serializable with LazyLogging {
       broadcast(
         sectionImportances
           .toDS()
-          .orderBy($"rank".asc))
+          .orderBy($"rank".asc)
+      )
 
     val wBySectionKeyword = Window.partitionBy("pmid", "section", "keywordId")
     val wByKeyword = Window.partitionBy("pmid", "keywordId")
@@ -93,7 +96,9 @@ object Processing extends Serializable with LazyLogging {
                    $"startInSentence",
                    $"endInSentence",
                    $"sectionStart",
-                   $"sectionEnd")).as("matches")
+                   $"sectionEnd"
+            )
+          ).as("matches")
         ).as("sentencesBySection")
       )
       .groupBy($"pmid")
@@ -107,10 +112,12 @@ object Processing extends Serializable with LazyLogging {
       .fill(0.01, "weight" :: Nil)
       .withColumn("keywordSectionV",
                   when($"section" =!= "title", collect_list($"weight").over(wBySectionKeyword))
-                    .otherwise(array(lit(titleWeight))))
+                    .otherwise(array(lit(titleWeight)))
+      )
       .dropDuplicates("pmid", "section", "keywordId")
       .withColumn("relevanceV",
-                  flatten(collect_list($"keywordSectionV").over(wByKeyword.orderBy($"rank".asc))))
+                  flatten(collect_list($"keywordSectionV").over(wByKeyword.orderBy($"rank".asc)))
+      )
       .withColumn("relevance", harmonicFn($"relevanceV", size($"relevanceV")))
       .dropDuplicates("pmid", "keywordId")
       .join(sentencesDF, Seq("pmid"), "left_outer")
@@ -145,7 +152,8 @@ object Processing extends Serializable with LazyLogging {
       .filter(
         $"section".isNotNull and
           $"isMapped" === true and
-          $"section".isInCollection(Seq("title", "abstract")))
+          $"section".isInCollection(Seq("title", "abstract"))
+      )
       .withColumn("match",
                   struct($"endInSentence",
                          $"label",
@@ -154,7 +162,9 @@ object Processing extends Serializable with LazyLogging {
                          $"startInSentence",
                          $"type",
                          $"keywordId",
-                         $"isMapped"))
+                         $"isMapped"
+                  )
+      )
       .groupBy($"pmid", $"section")
       .agg(
         array_distinct(collect_list($"match")).as("matches")
@@ -197,10 +207,12 @@ object Processing extends Serializable with LazyLogging {
     val dataframesToSave = Map(
       "failedMatches" -> IOResource(
         failedMatches,
-        outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")),
+        outputs.matches.copy(path = context.configuration.common.output + "/failedMatches")
+      ),
       "failedCoocs" -> IOResource(
         failedCoocs,
-        outputs.matches.copy(path = context.configuration.common.output + "/failedCooccurrences")),
+        outputs.matches.copy(path = context.configuration.common.output + "/failedCooccurrences")
+      ),
       "cooccurrences" -> IOResource(coocs, outputs.cooccurrences),
       "matches" -> IOResource(matches, outputs.matches),
       "literatureIndex" -> IOResource(literatureIndexAlt, outputs.literatureIndex)

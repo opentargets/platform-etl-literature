@@ -28,8 +28,9 @@ object Vectors extends Serializable with LazyLogging {
       .withColumn("category",
                   when($"word".startsWith("ENSG"), lit("target"))
                     .when($"word".startsWith("CHEMBL"), lit("drug"))
-                    .otherwise("disease"))
-      .withColumn("norm", udf((v: Vector) => norm(v, 2D)).apply($"vector"))
+                    .otherwise("disease")
+      )
+      .withColumn("norm", udf((v: Vector) => norm(v, 2d)).apply($"vector"))
       .withColumn("vector", vector_to_array($"vector"))
       .select(columns.head, columns.tail: _*)
   }

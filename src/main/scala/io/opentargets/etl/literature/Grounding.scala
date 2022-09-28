@@ -27,8 +27,8 @@ object Grounding extends Serializable with LazyLogging {
       "were weren't what what's when when's where where's which while who who's whom why why's with won't would wouldn't " +
       "you you'd you'll you're you've your yours yourself yourselves").split(" ")
 
-  val allStopWords: Array[String] = Array("a", "i") ++ googleStopWords ++ googleStopWords.map(
-    _.capitalize)
+  val allStopWords: Array[String] =
+    Array("a", "i") ++ googleStopWords ++ googleStopWords.map(_.capitalize)
 
   private val labelT = "LT"
   private val tokenT = "TT"
@@ -111,9 +111,8 @@ object Grounding extends Serializable with LazyLogging {
   private def disambiguate(df: DataFrame,
                            keywordColumnName: String,
                            labelCountsColumnName: String,
-                           typeColumnName: String = "type")(
-      implicit
-      sparkSession: SparkSession): DataFrame = {
+                           typeColumnName: String = "type"
+  )(implicit sparkSession: SparkSession): DataFrame = {
     // prefix is used to prefix each new temp column is created in here so no clash with
     // any other already present
     val prefix = Random.alphanumeric.take(6)
@@ -129,29 +128,29 @@ object Grounding extends Serializable with LazyLogging {
     val windowPerKeywordPerPub = Window.partitionBy(keywordColumnsPerPub.map(col): _*)
 
     df.withColumn(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub,
-                  min(col(labelCountsColumnName)).over(windowPerKeywordPerPub))
-      .withColumn(
-        minDistinctKeywordsPerLabelOverKeywordOverallPubs,
-        min(col(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub)).over(windowPerKeyword))
-      .filter(col(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub) <= col(
-        minDistinctKeywordsPerLabelOverKeywordOverallPubs))
-      .drop(
-        minDistinctKeywordsPerLabelOverKeywordOverallPubs,
-        minDistinctKeywordsPerLabelPerPubOverKeywordPerPub
+                  min(col(labelCountsColumnName)).over(windowPerKeywordPerPub)
+    ).withColumn(minDistinctKeywordsPerLabelOverKeywordOverallPubs,
+                 min(col(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub)).over(windowPerKeyword)
+    ).filter(
+      col(minDistinctKeywordsPerLabelPerPubOverKeywordPerPub) <= col(
+        minDistinctKeywordsPerLabelOverKeywordOverallPubs
       )
+    ).drop(
+      minDistinctKeywordsPerLabelOverKeywordOverallPubs,
+      minDistinctKeywordsPerLabelPerPubOverKeywordPerPub
+    )
   }
 
   private def normaliseSentence(df: DataFrame,
                                 pipeline: Pipeline,
                                 columnNamePrefix: String,
-                                columns: List[String]): DataFrame = {
+                                columns: List[String]
+  ): DataFrame = {
     val annotations = pipeline
       .fit(df)
       .transform(df)
 
-    val transCols = columns.map(c => {
-      s"finished_$c" -> s"${columnNamePrefix}_$c"
-    })
+    val transCols = columns.map(c => s"finished_$c" -> s"${columnNamePrefix}_$c")
 
     transCols.foldLeft(annotations) { (B, p) =>
       B.withColumnRenamed(p._1, p._2)
@@ -161,8 +160,8 @@ object Grounding extends Serializable with LazyLogging {
   def mapEntities(entities: DataFrame,
                   luts: DataFrame,
                   pipeline: Pipeline,
-                  pipelineCols: List[String])(implicit
-                                              sparkSession: SparkSession): DataFrame = {
+                  pipelineCols: List[String]
+  )(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
 
     val labels = entities
@@ -176,7 +175,8 @@ object Grounding extends Serializable with LazyLogging {
           .when(
             $"type".isInCollection(List("GP", "CD")),
             array(struct('nLabel.as("keyValue"), lit(labelT).as("keyType")),
-                  struct('nLabel.as("keyValue"), lit(tokenT).as("keyType")))
+                  struct('nLabel.as("keyValue"), lit(tokenT).as("keyType"))
+            )
           )
       )
       .withColumn("_textV", explode($"textV"))
@@ -205,9 +205,9 @@ object Grounding extends Serializable with LazyLogging {
     mappedLabel
   }
 
-  def resolveEntities(entities: DataFrame, mappedLabels: DataFrame)(
-      implicit
-      sparkSession: SparkSession): Map[String, DataFrame] = {
+  def resolveEntities(entities: DataFrame, mappedLabels: DataFrame)(implicit
+      sparkSession: SparkSession
+  ): Map[String, DataFrame] = {
     import sparkSession.implicits._
 
     logger.info("resolve matches and cooccurrences with the grounded and filtered labels")
@@ -311,8 +311,9 @@ object Grounding extends Serializable with LazyLogging {
     )
   }
 
-  def loadEntities(df: DataFrame, epmcids: DataFrame)(
-      implicit sparkSession: SparkSession): DataFrame = {
+  def loadEntities(df: DataFrame, epmcids: DataFrame)(implicit
+      sparkSession: SparkSession
+  ): DataFrame = {
     import sparkSession.implicits._
 
     val eIds = broadcast(epmcids.orderBy($"pmcid_lut".asc))
@@ -321,7 +322,8 @@ object Grounding extends Serializable with LazyLogging {
     df.withColumn("trace_source", input_file_name())
       .withColumn("pmid", when($"pmid".isNotNull and $"pmid" =!= "" and $"pmid" =!= "0", $"pmid"))
       .withColumn("pmcid",
-                  when($"pmcid".isNotNull and $"pmcid" =!= "" and $"pmcid" =!= "0", $"pmcid"))
+                  when($"pmcid".isNotNull and $"pmcid" =!= "" and $"pmcid" =!= "0", $"pmcid")
+      )
       .withColumn("failed_pmid", $"pmid".isNull)
       .withColumn("failed_pmcid", $"pmcid".isNull)
       .withColumn("failed_pmcid_and_pmid", $"pmcid".isNull and $"pmid".isNull)
@@ -332,7 +334,8 @@ object Grounding extends Serializable with LazyLogging {
       .drop(epmcids.columns.filter(_.endsWith("_lut")): _*)
       .withColumn("failed_recover_pmid_not_pmcid", $"failed_pmid_not_pmcid" and $"pmid".isNotNull)
       .withColumn("date",
-                  when($"pubDate".isNotNull and $"pubDate" =!= "", $"pubDate".cast(DateType)))
+                  when($"pubDate".isNotNull and $"pubDate" =!= "", $"pubDate".cast(DateType))
+      )
       .withColumn("failed_date", $"date".isNull)
       .withColumn("year", when($"date".isNotNull, year($"date")))
       .withColumn("month", when($"date".isNotNull, month($"date")))
@@ -358,43 +361,51 @@ object Grounding extends Serializable with LazyLogging {
 
   private def cleanAndScoreArrayColumn[A](c: Column, score: Double, keyTypeName: String): Column =
     transform(coalesce(c, array()),
-              c => struct(c.as("key"), lit(score).as("factor"), lit(keyTypeName).as("keyType")))
+              c => struct(c.as("key"), lit(score).as("factor"), lit(keyTypeName).as("keyType"))
+    )
 
   private def generateKeysColumn(df: DataFrame, columnPrefix: String, keyColumnName: String)(
-      implicit sparkSession: SparkSession): DataFrame = {
+      implicit sparkSession: SparkSession
+  ): DataFrame = {
     import sparkSession.implicits._
 
     val labelColumn = s"${columnPrefix}_$labelT"
     val tokenColumn = s"${columnPrefix}_$tokenT"
 
     df.withColumn(
-        keyColumnName,
-        when($"keyType" === labelT,
-             array_join(
-               array_sort(filter(array_distinct(col(labelColumn)), c => c.isNotNull and c =!= "")),
-               ""))
-          .when($"keyType" === tokenT,
-                array_join(filter(col(tokenColumn), c => c.isNotNull and c =!= ""), ""))
+      keyColumnName,
+      when($"keyType" === labelT,
+           array_join(
+             array_sort(filter(array_distinct(col(labelColumn)), c => c.isNotNull and c =!= "")),
+             ""
+           )
       )
-      .filter(col(keyColumnName).isNotNull and length(col(keyColumnName)) > 0)
+        .when($"keyType" === tokenT,
+              array_join(filter(col(tokenColumn), c => c.isNotNull and c =!= ""), "")
+        )
+    ).filter(col(keyColumnName).isNotNull and length(col(keyColumnName)) > 0)
   }
 
-  private def transformDiseases(
-      diseases: DataFrame,
-      pipeline: Pipeline,
-      pipelineCols: List[String])(implicit sparkSession: SparkSession): DataFrame = {
+  private def transformDiseases(diseases: DataFrame,
+                                pipeline: Pipeline,
+                                pipelineCols: List[String]
+  )(implicit sparkSession: SparkSession): DataFrame = {
     import sparkSession.implicits._
     diseases
       .selectExpr("id as keywordId", "name", "synonyms.*")
-      .withColumn("nameC", cleanAndScoreArrayColumn[String](array($"name"), 1D, labelT))
+      .withColumn("nameC", cleanAndScoreArrayColumn[String](array($"name"), 1d, labelT))
       .withColumn("exactSynonyms",
-                  cleanAndScoreArrayColumn[String]($"hasExactSynonym", 0.999, labelT))
+                  cleanAndScoreArrayColumn[String]($"hasExactSynonym", 0.999, labelT)
+      )
       .withColumn("narrowSynonyms",
-                  cleanAndScoreArrayColumn[String]($"hasNarrowSynonym", 0.998, labelT))
+                  cleanAndScoreArrayColumn[String]($"hasNarrowSynonym", 0.998, labelT)
+      )
       .withColumn("broadSynonyms",
-                  cleanAndScoreArrayColumn[String]($"hasBroadSynonym", 0.997, labelT))
+                  cleanAndScoreArrayColumn[String]($"hasBroadSynonym", 0.997, labelT)
+      )
       .withColumn("relatedSynonyms",
-                  cleanAndScoreArrayColumn[String]($"hasRelatedSynonym", 0.996, labelT))
+                  cleanAndScoreArrayColumn[String]($"hasRelatedSynonym", 0.996, labelT)
+      )
       .withColumn(
         "_text",
         explode(
@@ -403,7 +414,10 @@ object Grounding extends Serializable with LazyLogging {
                   $"broadSynonyms",
                   $"exactSynonyms",
                   $"narrowSynonyms",
-                  $"relatedSynonyms")))
+                  $"relatedSynonyms"
+            )
+          )
+        )
       )
       .withColumn("text", $"_text".getField("key"))
       .withColumn("factor", $"_text".getField("factor"))
@@ -415,7 +429,8 @@ object Grounding extends Serializable with LazyLogging {
   }
 
   private def transformTargets(targets: DataFrame, pipeline: Pipeline, pipelineCols: List[String])(
-      implicit sparkSession: SparkSession): DataFrame = {
+      implicit sparkSession: SparkSession
+  ): DataFrame = {
     import sparkSession.implicits._
     targets
       .select(
@@ -432,12 +447,15 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("symbolC", cleanAndScoreArrayColumn[String](array($"symbol"), 1, tokenT))
       .withColumn("nameSynonymsC", cleanAndScoreArrayColumn[String]($"nameSynonyms", 0.999, labelT))
       .withColumn("symbolSynonymsC",
-                  cleanAndScoreArrayColumn[String]($"symbolSynonyms", 0.999, tokenT))
+                  cleanAndScoreArrayColumn[String]($"symbolSynonyms", 0.999, tokenT)
+      )
       .withColumn("accessionsC", cleanAndScoreArrayColumn[String]($"accessions", 0.999, tokenT))
       .withColumn("obsoleteNamesC",
-                  cleanAndScoreArrayColumn[String]($"obsoleteNames", 0.998, labelT))
+                  cleanAndScoreArrayColumn[String]($"obsoleteNames", 0.998, labelT)
+      )
       .withColumn("obsoleteSymbolsC",
-                  cleanAndScoreArrayColumn[String]($"obsoleteSymbols", 0.998, tokenT))
+                  cleanAndScoreArrayColumn[String]($"obsoleteSymbols", 0.998, tokenT)
+      )
       .withColumn(
         "_text",
         explode(
@@ -469,7 +487,8 @@ object Grounding extends Serializable with LazyLogging {
   }
 
   private def transformDrugs(drugs: DataFrame, pipeline: Pipeline, pipelineCols: List[String])(
-      implicit sparkSession: SparkSession): DataFrame = {
+      implicit sparkSession: SparkSession
+  ): DataFrame = {
     import sparkSession.implicits._
     drugs
       .selectExpr("id as keywordId", "name", "tradeNames", "synonyms")
@@ -481,8 +500,12 @@ object Grounding extends Serializable with LazyLogging {
       .withColumn("synonymsT", cleanAndScoreArrayColumn[String]($"synonyms", 0.999, tokenT))
       .withColumn(
         "_text",
-        explode(flatten(
-          array($"nameL", $"nameT", $"tradeNamesL", $"tradeNamesT", $"synonymsL", $"synonymsT"))))
+        explode(
+          flatten(
+            array($"nameL", $"nameT", $"tradeNamesL", $"tradeNamesT", $"synonymsL", $"synonymsT")
+          )
+        )
+      )
       .withColumn("text", $"_text".getField("key"))
       .withColumn("factor", $"_text".getField("factor"))
       .withColumn("keyType", $"_text".getField("keyType"))
@@ -492,12 +515,12 @@ object Grounding extends Serializable with LazyLogging {
       .transform(generateKeysColumn(_, "drugTerms", "key"))
   }
 
-  def loadEntityLUT(
-      targets: DataFrame,
-      diseases: DataFrame,
-      drugs: DataFrame,
-      pipeline: Pipeline,
-      pipelineColumns: List[String])(implicit sparkSession: SparkSession): DataFrame = {
+  def loadEntityLUT(targets: DataFrame,
+                    diseases: DataFrame,
+                    drugs: DataFrame,
+                    pipeline: Pipeline,
+                    pipelineColumns: List[String]
+  )(implicit sparkSession: SparkSession): DataFrame = {
     val cols = List(
       "key as labelN",
       "type",
@@ -523,7 +546,8 @@ object Grounding extends Serializable with LazyLogging {
       .unionByName(DR)
       .distinct()
       .withColumn("uniqueKeywordIdsPerLabelN",
-                  approx_count_distinct(col("keywordId"), 0.01).over(w))
+                  approx_count_distinct(col("keywordId"), 0.01).over(w)
+      )
       .orderBy(col("type"), col("labelN"))
 
     lut
@@ -536,8 +560,9 @@ object Grounding extends Serializable with LazyLogging {
       .distinct()
   }
 
-  def compute(empcConfiguration: ProcessingSection)(
-      implicit context: ETLSessionContext): Map[String, DataFrame] = {
+  def compute(
+      empcConfiguration: ProcessingSection
+  )(implicit context: ETLSessionContext): Map[String, DataFrame] = {
     implicit val ss: SparkSession = context.sparkSession
 
     logger.info("Grounding step")
@@ -564,7 +589,8 @@ object Grounding extends Serializable with LazyLogging {
         inputDataFrames("drugs").data,
         pipeline,
         pipelineColumns
-      ))
+      )
+    )
 
     val epmcDf = Helpers.replaceSpacesSchema(inputDataFrames("epmc").data)
 

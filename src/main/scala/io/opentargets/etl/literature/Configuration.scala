@@ -17,12 +17,14 @@ object Configuration extends LazyLogging {
   case class Common(defaultSteps: Seq[String],
                     output: String,
                     outputFormat: String,
-                    publicationSectionRanks: Seq[PublicationSectionRank])
+                    publicationSectionRanks: Seq[PublicationSectionRank]
+  )
 
   case class ProcessingOutput(rawEvidence: IOResourceConfig,
                               cooccurrences: IOResourceConfig,
                               matches: IOResourceConfig,
-                              literatureIndex: IOResourceConfig)
+                              literatureIndex: IOResourceConfig
+  )
 
   case class ProcessingSection(
       epmcids: IOResourceConfig,
@@ -35,17 +37,20 @@ object Configuration extends LazyLogging {
 
   case class EvidenceSectionInputs(matches: IOResourceConfig,
                                    cooccurrences: IOResourceConfig,
-                                   model: IOResourceConfig)
+                                   model: IOResourceConfig
+  )
 
   case class EvidenceSection(threshold: Option[Double],
                              inputs: EvidenceSectionInputs,
-                             output: IOResourceConfig)
+                             output: IOResourceConfig
+  )
 
   case class ModelConfiguration(windowSize: Int,
                                 numPartitions: Int,
                                 maxIter: Int,
                                 minCount: Int,
-                                stepSize: Double)
+                                stepSize: Double
+  )
 
   case class EmbeddingSectionOutputs(model: IOResourceConfig, trainingSet: IOResourceConfig)
   case class EmbeddingSection(

@@ -11,9 +11,8 @@ case class ETLSessionContext(configuration: OTConfig, sparkSession: SparkSession
 object ETLSessionContext extends LazyLogging {
   val progName: String = "ot-platform-etl-literature"
 
-  def apply(): Either[ConfigReaderFailures, ETLSessionContext] = {
+  def apply(): Either[ConfigReaderFailures, ETLSessionContext] =
     for {
       config <- Configuration.config
     } yield ETLSessionContext(config, getOrCreateSparkSession(progName, config.sparkUri))
-  }
 }
